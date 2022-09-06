@@ -22,13 +22,35 @@ using namespace std;
 void UsageMessage(const char *command);
 bool StrStartWith(const char *str, const char *pre);
 string ParseCommandLine(int argc, const char *argv[], utils::Properties &props);
+void Init(utils::Properties &props);
+void PrintInfo(utils::Properties &props);
 
 int DelegateClient(ycsbc::DB *db, ycsbc::CoreWorkload *wl, const int num_ops,
     bool is_loading) {
   db->Init();
   ycsbc::Client client(*db, *wl);
   int oks = 0;
+  int next_report_ = 0;
+
   for (int i = 0; i < num_ops; ++i) {
+    if (i >= next_report_) {
+      if (next_report_ < 1000)
+        next_report_ += 100;
+      else if (next_report_ < 5000)
+        next_report_ += 500;
+      else if (next_report_ < 10000)
+        next_report_ += 1000;
+      else if (next_report_ < 50000)
+        next_report_ += 5000;
+      else if (next_report_ < 100000)
+        next_report_ += 10000;
+      else if (next_report_ < 500000)
+        next_report_ += 50000;
+      else
+        next_report_ += 100000;
+      fprintf(stderr, "... finished %d ops%30s\r", i, "");
+      fflush(stderr);
+    }
     if (is_loading) {
       oks += client.DoInsert();
     } else {
@@ -41,6 +63,7 @@ int DelegateClient(ycsbc::DB *db, ycsbc::CoreWorkload *wl, const int num_ops,
 
 int main(const int argc, const char *argv[]) {
   utils::Properties props;
+  Init(props);
   string file_name = ParseCommandLine(argc, argv, props);
 
   ycsbc::DB *db = ycsbc::DBFactory::CreateDB(props);
@@ -152,6 +175,62 @@ string ParseCommandLine(int argc, const char *argv[], utils::Properties &props) 
       }
       input.close();
       argindex++;
+    } else if (strcmp(argv[argindex], "-dbpath") == 0) {
+      argindex++;
+      if (argindex >= argc) {
+        UsageMessage(argv[0]);
+        exit(0);
+      }
+      props.SetProperty("dbpath", argv[argindex]);
+      argindex++;
+    } else if (strcmp(argv[argindex], "-load") == 0) {
+      argindex++;
+      if (argindex >= argc) {
+        UsageMessage(argv[0]);
+        exit(0);
+      }
+      props.SetProperty("load", argv[argindex]);
+      argindex++;
+    } else if (strcmp(argv[argindex], "-run") == 0) {
+      argindex++;
+      if (argindex >= argc) {
+        UsageMessage(argv[0]);
+        exit(0);
+      }
+      props.SetProperty("run", argv[argindex]);
+      argindex++;
+    } else if (strcmp(argv[argindex], "-dboption") == 0) {
+      argindex++;
+      if (argindex >= argc) {
+        UsageMessage(argv[0]);
+        exit(0);
+      }
+      props.SetProperty("dboption", argv[argindex]);
+      argindex++;
+    } else if (strcmp(argv[argindex], "-dbstatistics") == 0) {
+      argindex++;
+      if (argindex >= argc) {
+        UsageMessage(argv[0]);
+        exit(0);
+      }
+      props.SetProperty("dbstatistics", argv[argindex]);
+      argindex++;
+    } else if (strcmp(argv[argindex], "-dbwaitforbalance") == 0) {
+      argindex++;
+      if (argindex >= argc) {
+        UsageMessage(argv[0]);
+        exit(0);
+      }
+      props.SetProperty("dbwaitforbalance", argv[argindex]);
+      argindex++;
+    } else if (strcmp(argv[argindex], "-morerun") == 0) {
+      argindex++;
+      if (argindex >= argc) {
+        UsageMessage(argv[0]);
+        exit(0);
+      }
+      props.SetProperty("morerun", argv[argindex]);
+      argindex++;
     } else {
       cout << "Unknown option '" << argv[argindex] << "'" << endl;
       exit(0);
@@ -179,3 +258,22 @@ inline bool StrStartWith(const char *str, const char *pre) {
   return strncmp(str, pre, strlen(pre)) == 0;
 }
 
+void Init(utils::Properties &props) {
+  props.SetProperty("dbname", "basic");
+  props.SetProperty("dbpath", "");
+  props.SetProperty("load", "false");
+  props.SetProperty("run", "false");
+  props.SetProperty("threadcount", "1");
+  props.SetProperty("dboption", "0");
+  props.SetProperty("dbstatistics", "false");
+  props.SetProperty("dbwaitforbalance", "false");
+  props.SetProperty("morerun", "");
+}
+
+void PrintInfo(utils::Properties &props) {
+  printf("---- dbname:%s  dbpath:%s ----\n", props["dbname"].c_str(),
+      props["dbpath"].c_str());
+  printf("%s", props.DebugString().c_str());
+  printf("----------------------------------------\n");
+  fflush(stdout);
+}

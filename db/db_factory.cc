@@ -14,12 +14,13 @@
 #include "db/redis_db.h"
 #include "db/tbb_rand_db.h"
 #include "db/tbb_scan_db.h"
+#include "db/rocksdb.h"
 
 using namespace std;
 using ycsbc::DB;
 using ycsbc::DBFactory;
 
-DB* DBFactory::CreateDB(utils::Properties &props) {
+DB* DBFactory::CreateDB(utils::Properties& props) {
   if (props["dbname"] == "basic") {
     return new BasicDB;
   } else if (props["dbname"] == "lock_stl") {
@@ -32,6 +33,9 @@ DB* DBFactory::CreateDB(utils::Properties &props) {
     return new TbbRandDB;
   } else if (props["dbname"] == "tbb_scan") {
     return new TbbScanDB;
-  } else return NULL;
+  } else if (props["dbname"] == "rocksdb") {
+    std::string dbpath = props.GetProperty("dbpath", "/tmp/ycsbc-rocksdb-test");
+    return new RocksDB(dbpath.c_str(), props);
+  } else
+    return NULL;
 }
-
