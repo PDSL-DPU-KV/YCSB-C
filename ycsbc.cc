@@ -57,7 +57,6 @@ int DelegateClient(ycsbc::DB *db, ycsbc::CoreWorkload *wl, const int num_ops,
       oks += client.DoTransaction();
     }
   }
-  db->Close();
   return oks;
 }
 
@@ -113,6 +112,9 @@ int main(const int argc, const char *argv[]) {
   cerr << "# Transaction throughput (KTPS)" << endl;
   cerr << props["dbname"] << '\t' << file_name << '\t' << num_threads << '\t';
   cerr << total_ops / duration / 1000 << endl;
+
+  db->PrintStats();
+  db->Close();
 }
 
 string ParseCommandLine(int argc, const char *argv[], utils::Properties &props) {

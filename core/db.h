@@ -89,7 +89,9 @@ class DB {
   /// @return Zero on success, a non-zero error code on error.
   ///
   virtual int Delete(const std::string &table, const std::string &key) = 0;
-  
+
+  virtual void PrintStats() = 0;
+
   virtual ~DB() { }
 };
 

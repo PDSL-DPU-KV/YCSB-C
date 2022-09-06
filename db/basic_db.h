@@ -90,6 +90,11 @@ class BasicDB : public DB {
     return 0; 
   }
 
+  void PrintStats() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    cout << "STATS " << endl;
+  }
+
  private:
   std::mutex mutex_;
 };
