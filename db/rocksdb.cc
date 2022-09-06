@@ -27,21 +27,22 @@ RocksDB::RocksDB(const char *dbfilename, utils::Properties &props) :
 void RocksDB::SetOptions(rocksdb::Options *options, utils::Properties &props) {
   //// 默认的Rocksdb配置
   options->create_if_missing = true;
-  options->compression = rocksdb::kNoCompression;
+  // options->compression = rocksdb::kNoCompression;
   // options->enable_pipelined_write = true;
 
-  options->max_background_jobs = 2;
-  options->max_bytes_for_level_base = 32ul * 1024 * 1024;
-  options->write_buffer_size = 32ul * 1024 * 1024;
-  options->max_write_buffer_number = 2;
+  options->max_background_compactions = 4;
+  options->max_background_jobs = 4;
+  options->max_bytes_for_level_base = 10ul * 1024 * 1024;
+  options->write_buffer_size = 4ul * 1024 * 1024;
+  // options->max_write_buffer_number = 2;
   options->target_file_size_base = 4ul * 1024 * 1024;
 
-  options->level0_file_num_compaction_trigger = 4;
-  options->level0_slowdown_writes_trigger = 8;
-  options->level0_stop_writes_trigger = 12;
+  // options->level0_file_num_compaction_trigger = 4;
+  // options->level0_slowdown_writes_trigger = 8;
+  // options->level0_stop_writes_trigger = 12;
 
-  options->use_direct_reads = true;
-  options->use_direct_io_for_flush_and_compaction = true;
+  // options->use_direct_reads = true;
+  // options->use_direct_io_for_flush_and_compaction = true;
 
   // no block cache
   rocksdb::BlockBasedTableOptions table_options;
@@ -50,19 +51,17 @@ void RocksDB::SetOptions(rocksdb::Options *options, utils::Properties &props) {
       rocksdb::NewBlockBasedTableFactory(table_options));
 
   /*
+  //cache
 uint64_t nums = stoi(props.GetProperty(CoreWorkload::RECORD_COUNT_PROPERTY));
 uint32_t key_len = stoi(props.GetProperty(CoreWorkload::KEY_LENGTH));
 uint32_t value_len =
 stoi(props.GetProperty(CoreWorkload::FIELD_LENGTH_PROPERTY));
-  */
-  /*
+
 uint32_t cache_size = nums * (key_len + value_len) * 10 / 100; //10%
 if(cache_size < 8 << 20){   //不小于8MB；
 cache_size = 8 << 20;
 }
-*/
 
-  /*
 //cache_ = rocksdb::NewLRUCache(cache_size);
 if(options->table_factory->GetOptions() != nullptr){
 rocksdb::BlockBasedTableOptions* table_options =
