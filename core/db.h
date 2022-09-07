@@ -9,8 +9,8 @@
 #ifndef YCSB_C_DB_H_
 #define YCSB_C_DB_H_
 
-#include <vector>
 #include <string>
+#include <vector>
 
 namespace ycsbc {
 
@@ -22,14 +22,16 @@ class DB {
   static const int kErrorConflict = 2;
   ///
   /// Initializes any state for accessing this DB.
-  /// Called once per DB client (thread); there is a single DB instance globally.
+  /// Called once per DB client (thread); there is a single DB instance
+  /// globally.
   ///
-  virtual void Init() { }
+  virtual void Init() {}
   ///
   /// Clears any state for accessing this DB.
-  /// Called once per DB client (thread); there is a single DB instance globally.
+  /// Called once per DB client (thread); there is a single DB instance
+  /// globally.
   ///
-  virtual void Close() { }
+  virtual void Close() {}
   ///
   /// Reads a record from the database.
   /// Field/value pairs from the result are stored in a vector.
@@ -89,10 +91,12 @@ class DB {
   /// @return Zero on success, a non-zero error code on error.
   ///
   virtual int Delete(const std::string &table, const std::string &key) = 0;
-  
-  virtual ~DB() { }
+
+  virtual void PrintStats() = 0;
+
+  virtual ~DB() {}
 };
 
-} // ycsbc
+}  // namespace ycsbc
 
-#endif // YCSB_C_DB_H_
+#endif  // YCSB_C_DB_H_

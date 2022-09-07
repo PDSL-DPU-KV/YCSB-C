@@ -9,12 +9,12 @@
 #ifndef YCSB_C_DISCRETE_GENERATOR_H_
 #define YCSB_C_DISCRETE_GENERATOR_H_
 
-#include "generator.h"
-
 #include <atomic>
 #include <cassert>
 #include <mutex>
 #include <vector>
+
+#include "generator.h"
 #include "utils.h"
 
 namespace ycsbc {
@@ -22,7 +22,7 @@ namespace ycsbc {
 template <typename Value>
 class DiscreteGenerator : public Generator<Value> {
  public:
-  DiscreteGenerator() : sum_(0) { }
+  DiscreteGenerator() : sum_(0) {}
   void AddValue(Value value, double weight);
 
   Value Next();
@@ -49,18 +49,18 @@ inline Value DiscreteGenerator<Value>::Next() {
   mutex_.lock();
   double chooser = utils::RandomDouble();
   mutex_.unlock();
-  
+
   for (auto p = values_.cbegin(); p != values_.cend(); ++p) {
     if (chooser < p->second / sum_) {
       return last_ = p->first;
     }
     chooser -= p->second / sum_;
   }
-  
+
   assert(false);
   return last_;
 }
 
-} // ycsbc
+}  // namespace ycsbc
 
-#endif // YCSB_C_DISCRETE_GENERATOR_H_
+#endif  // YCSB_C_DISCRETE_GENERATOR_H_
