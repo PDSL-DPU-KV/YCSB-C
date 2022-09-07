@@ -7,15 +7,16 @@
 //
 
 #include <cstring>
-#include <string>
-#include <iostream>
-#include <vector>
 #include <future>
-#include "utils.h"
-#include "timer.h"
+#include <iostream>
+#include <string>
+#include <vector>
+
 #include "client.h"
 #include "core_workload.h"
 #include "db_factory.h"
+#include "timer.h"
+#include "utils.h"
 
 using namespace std;
 
@@ -26,7 +27,7 @@ void Init(utils::Properties &props);
 void PrintInfo(utils::Properties &props);
 
 int DelegateClient(ycsbc::DB *db, ycsbc::CoreWorkload *wl, const int num_ops,
-    bool is_loading) {
+                   bool is_loading) {
   db->Init();
   ycsbc::Client client(*db, *wl);
   int oks = 0;
@@ -80,8 +81,8 @@ int main(const int argc, const char *argv[]) {
   vector<future<int>> actual_ops;
   int total_ops = stoi(props[ycsbc::CoreWorkload::RECORD_COUNT_PROPERTY]);
   for (int i = 0; i < num_threads; ++i) {
-    actual_ops.emplace_back(async(launch::async,
-        DelegateClient, db, &wl, total_ops / num_threads, true));
+    actual_ops.emplace_back(async(launch::async, DelegateClient, db, &wl,
+                                  total_ops / num_threads, true));
   }
   assert((int)actual_ops.size() == num_threads);
 
@@ -98,8 +99,8 @@ int main(const int argc, const char *argv[]) {
   utils::Timer<double> timer;
   timer.Start();
   for (int i = 0; i < num_threads; ++i) {
-    actual_ops.emplace_back(async(launch::async,
-        DelegateClient, db, &wl, total_ops / num_threads, false));
+    actual_ops.emplace_back(async(launch::async, DelegateClient, db, &wl,
+                                  total_ops / num_threads, false));
   }
   assert((int)actual_ops.size() == num_threads);
 
@@ -117,7 +118,8 @@ int main(const int argc, const char *argv[]) {
   db->Close();
 }
 
-string ParseCommandLine(int argc, const char *argv[], utils::Properties &props) {
+string ParseCommandLine(int argc, const char *argv[],
+                        utils::Properties &props) {
   int argindex = 1;
   string filename;
   while (argindex < argc && StrStartWith(argv[argindex], "-")) {
@@ -251,9 +253,14 @@ void UsageMessage(const char *command) {
   cout << "Usage: " << command << " [options]" << endl;
   cout << "Options:" << endl;
   cout << "  -threads n: execute using n threads (default: 1)" << endl;
-  cout << "  -db dbname: specify the name of the DB to use (default: basic)" << endl;
-  cout << "  -P propertyfile: load properties from the given file. Multiple files can" << endl;
-  cout << "                   be specified, and will be processed in the order specified" << endl;
+  cout << "  -db dbname: specify the name of the DB to use (default: basic)"
+       << endl;
+  cout << "  -P propertyfile: load properties from the given file. Multiple "
+          "files can"
+       << endl;
+  cout << "                   be specified, and will be processed in the order "
+          "specified"
+       << endl;
 }
 
 inline bool StrStartWith(const char *str, const char *pre) {
@@ -274,7 +281,7 @@ void Init(utils::Properties &props) {
 
 void PrintInfo(utils::Properties &props) {
   printf("---- dbname:%s  dbpath:%s ----\n", props["dbname"].c_str(),
-      props["dbpath"].c_str());
+         props["dbpath"].c_str());
   printf("%s", props.DebugString().c_str());
   printf("----------------------------------------\n");
   fflush(stdout);

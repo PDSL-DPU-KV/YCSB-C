@@ -9,17 +9,19 @@
 #ifndef YCSB_C_PROPERTIES_H_
 #define YCSB_C_PROPERTIES_H_
 
-#include <string>
-#include <map>
-#include <fstream>
 #include <cassert>
+#include <fstream>
+#include <map>
+#include <string>
+
 #include "utils.h"
 
 namespace utils {
 
 class Properties {
  public:
-  std::string GetProperty(const std::string &key,
+  std::string GetProperty(
+      const std::string &key,
       const std::string &default_value = std::string()) const;
   const std::string &operator[](const std::string &key) const;
   const std::map<std::string, std::string> &properties() const;
@@ -27,23 +29,26 @@ class Properties {
   void SetProperty(const std::string &key, const std::string &value);
   bool Load(std::ifstream &input);
   std::string DebugString();
+
  private:
   std::map<std::string, std::string> properties_;
 };
 
-inline std::string Properties::GetProperty(const std::string &key,
-    const std::string &default_value) const {
+inline std::string Properties::GetProperty(
+    const std::string &key, const std::string &default_value) const {
   std::map<std::string, std::string>::const_iterator it = properties_.find(key);
   if (properties_.end() == it || it->second == "") {
     return default_value;
-  } else return it->second;
+  } else
+    return it->second;
 }
 
 inline const std::string &Properties::operator[](const std::string &key) const {
   return properties_.at(key);
 }
 
-inline const std::map<std::string, std::string> &Properties::properties() const {
+inline const std::map<std::string, std::string> &Properties::properties()
+    const {
   return properties_;
 }
 
@@ -74,6 +79,6 @@ inline std::string Properties::DebugString() {
   return str;
 }
 
-} // utils
+}  // namespace utils
 
-#endif // YCSB_C_PROPERTIES_H_
+#endif  // YCSB_C_PROPERTIES_H_

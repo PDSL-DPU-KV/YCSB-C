@@ -9,6 +9,7 @@
 #include "db_factory.h"
 
 #include <string>
+
 #include "basic_db.h"
 #include "rocksdb.h"
 

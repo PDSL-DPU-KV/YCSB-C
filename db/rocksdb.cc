@@ -4,15 +4,16 @@
 //
 
 #include "rocksdb.h"
-#include "coding.h"
 
 #include <iostream>
+
+#include "coding.h"
 
 using namespace std;
 
 namespace ycsbc {
-RocksDB::RocksDB(const char *dbfilename, utils::Properties &props) :
-    noResult(0), /*cache_(nullptr),*/ dbstats_(nullptr), write_sync_(false) {
+RocksDB::RocksDB(const char *dbfilename, utils::Properties &props)
+    : noResult(0), /*cache_(nullptr),*/ dbstats_(nullptr), write_sync_(false) {
   // set option
   rocksdb::Options options;
   SetOptions(&options, props);
@@ -81,7 +82,8 @@ table_options->filter_policy.reset(rocksdb::NewBloomFilterPolicy(10,false));
 }
 
 int RocksDB::Read(const std::string &table, const std::string &key,
-    const std::vector<std::string> *fields, std::vector<KVPair> &result) {
+                  const std::vector<std::string> *fields,
+                  std::vector<KVPair> &result) {
   string value;
   rocksdb::Status s = db_->Get(rocksdb::ReadOptions(), key, &value);
   if (s.ok()) {
@@ -105,8 +107,8 @@ int RocksDB::Read(const std::string &table, const std::string &key,
 }
 
 int RocksDB::Scan(const std::string &table, const std::string &key, int len,
-    const std::vector<std::string> *fields,
-    std::vector<std::vector<KVPair>> &result) {
+                  const std::vector<std::string> *fields,
+                  std::vector<std::vector<KVPair>> &result) {
   auto it = db_->NewIterator(rocksdb::ReadOptions());
   it->Seek(key);
   std::string val;
@@ -123,7 +125,7 @@ int RocksDB::Scan(const std::string &table, const std::string &key, int len,
 }
 
 int RocksDB::Insert(const std::string &table, const std::string &key,
-    std::vector<KVPair> &values) {
+                    std::vector<KVPair> &values) {
   rocksdb::Status s;
   string value;
   SerializeValues(values, value);
@@ -146,7 +148,7 @@ int RocksDB::Insert(const std::string &table, const std::string &key,
 }
 
 int RocksDB::Update(const std::string &table, const std::string &key,
-    std::vector<KVPair> &values) {
+                    std::vector<KVPair> &values) {
   return Insert(table, key, values);
 }
 

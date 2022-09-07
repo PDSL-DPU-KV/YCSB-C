@@ -1,19 +1,19 @@
 #ifndef YCSB_C_ROCKS_DB_H_
 #define YCSB_C_ROCKS_DB_H_
 
-#include "db.h"
-#include "properties.h"
-#include "core_workload.h"
-
-#include <iostream>
-#include <string>
-#include <mutex>
-
-#include <rocksdb/db.h>
 #include <rocksdb/cache.h>
-#include <rocksdb/table.h>
+#include <rocksdb/db.h>
 #include <rocksdb/filter_policy.h>
 #include <rocksdb/options.h>
+#include <rocksdb/table.h>
+
+#include <iostream>
+#include <mutex>
+#include <string>
+
+#include "core_workload.h"
+#include "db.h"
+#include "properties.h"
 
 using std::cout;
 using std::endl;
@@ -24,17 +24,17 @@ class RocksDB : public DB {
   RocksDB(const char *dbfilename, utils::Properties &props);
 
   int Read(const std::string &table, const std::string &key,
-      const std::vector<std::string> *fields, std::vector<KVPair> &result);
+           const std::vector<std::string> *fields, std::vector<KVPair> &result);
 
   int Scan(const std::string &table, const std::string &key, int len,
-      const std::vector<std::string> *fields,
-      std::vector<std::vector<KVPair>> &result);
+           const std::vector<std::string> *fields,
+           std::vector<std::vector<KVPair>> &result);
 
   int Update(const std::string &table, const std::string &key,
-      std::vector<KVPair> &values);
+             std::vector<KVPair> &values);
 
   int Insert(const std::string &table, const std::string &key,
-      std::vector<KVPair> &values);
+             std::vector<KVPair> &values);
 
   int Delete(const std::string &table, const std::string &key);
 

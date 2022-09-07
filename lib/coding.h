@@ -2,6 +2,7 @@
 #define YCSB_C_CODING_H_
 
 #include <stdint.h>
+
 #include <cstring>
 #include <string>
 
