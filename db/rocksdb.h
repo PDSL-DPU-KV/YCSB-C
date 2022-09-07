@@ -1,9 +1,9 @@
 #ifndef YCSB_C_ROCKS_DB_H_
 #define YCSB_C_ROCKS_DB_H_
 
-#include "core/db.h"
-#include "core/properties.h"
-#include "core/core_workload.h"
+#include "db.h"
+#include "properties.h"
+#include "core_workload.h"
 
 #include <iostream>
 #include <string>

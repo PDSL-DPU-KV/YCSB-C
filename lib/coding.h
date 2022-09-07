@@ -2,7 +2,7 @@
 #define YCSB_C_CODING_H_
 
 #include <stdint.h>
-#include <string.h>
+#include <cstring>
 #include <string>
 
 #define KLittleEndian true  // LittleEndian by default

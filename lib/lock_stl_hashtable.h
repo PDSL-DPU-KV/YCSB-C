@@ -8,7 +8,7 @@
 #ifndef YCSB_C_LIB_LOCK_STL_HASHTABLE_H_
 #define YCSB_C_LIB_LOCK_STL_HASHTABLE_H_
 
-#include "lib/stl_hashtable.h"
+#include "stl_hashtable.h"
 
 #include <vector>
 #include <mutex>

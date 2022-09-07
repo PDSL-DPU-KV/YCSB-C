@@ -34,7 +34,7 @@ class Properties {
 inline std::string Properties::GetProperty(const std::string &key,
     const std::string &default_value) const {
   std::map<std::string, std::string>::const_iterator it = properties_.find(key);
-  if (properties_.end() == it) {
+  if (properties_.end() == it || it->second == "") {
     return default_value;
   } else return it->second;
 }

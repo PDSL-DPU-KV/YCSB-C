@@ -8,11 +8,11 @@
 #ifndef YCSB_C_LIB_STL_HASHTABLE_H_
 #define YCSB_C_LIB_STL_HASHTABLE_H_
 
-#include "lib/string_hashtable.h"
+#include "string_hashtable.h"
 
 #include <unordered_map>
 #include <vector>
-#include "lib/string.h"
+#include "vmp_string.h"
 
 namespace vmp {
 

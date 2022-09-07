@@ -6,11 +6,11 @@
 //  Copyright (c) 2014 Jinglei Ren <jinglei@ren.systems>.
 //
 
-#include "db/db_factory.h"
+#include "db_factory.h"
 
 #include <string>
-#include "db/basic_db.h"
-#include "db/rocksdb.h"
+#include "basic_db.h"
+#include "rocksdb.h"
 
 using namespace std;
 using ycsbc::DB;

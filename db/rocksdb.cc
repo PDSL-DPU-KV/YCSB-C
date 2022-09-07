@@ -4,7 +4,7 @@
 //
 
 #include "rocksdb.h"
-#include "lib/coding.h"
+#include "coding.h"
 
 #include <iostream>
 
