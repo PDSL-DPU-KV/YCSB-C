@@ -8,15 +8,8 @@ project(
 rocksdb_lib_dir = '/home/xyq/workspace/rocksdb-tikv-5.4/build'
 rocksdb_include_dir = '/home/xyq/workspace/rocksdb-tikv-5.4/include'
 
-protobuf_lib_dir = '/usr/local/lib'
-protobuf_include_dir = '/usr/local/include/google/protobuf'
-
 pthread_dep = dependency('threads')
-# protobuf_dep = dependency('protobuf', version: '>=3.20.1')
-protobuf_dep = declare_dependency(
-    link_args: ['-L' + protobuf_lib_dir, '-lprotobuf'],
-    include_directories: include_directories(protobuf_include_dir)
-)
+protobuf_dep = dependency('protobuf', version: '>=3.20.1')
 # librocksdb_dep = dependency('librocksdb')
 librocksdb_dep = declare_dependency(
     link_args: ['-L' + rocksdb_lib_dir, '-lrocksdb'],
@@ -28,11 +21,7 @@ project_dependencies = [
     librocksdb_dep
 ]
 
-project_link_flags = [
-    '-lrocksdb',
-    '-lprotobuf',
-    '-lpthread',
-]
+project_link_flags = []
 
 project_header_files = []
 project_source_files = []
@@ -52,6 +41,6 @@ executable(
     include_directories: project_include_directories,
     dependencies: project_dependencies,
     link_with: [ycsbc_core_lib, ycsbc_db_lib],
-    build_rpath: rocksdb_lib_dir + ':' + protobuf_lib_dir,
-    install_rpath: rocksdb_lib_dir + ':' + protobuf_lib_dir,
+    build_rpath: rocksdb_lib_dir,
+    install_rpath: rocksdb_lib_dir,
 )

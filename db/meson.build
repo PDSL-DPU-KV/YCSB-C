@@ -11,8 +11,8 @@ ycsbc_db_lib = library(
     dependencies: project_dependencies,
     include_directories: project_include_directories,
     link_args: project_link_flags,
-    build_rpath: rocksdb_lib_dir + ':' + protobuf_lib_dir,
-    install_rpath: rocksdb_lib_dir + ':' + protobuf_lib_dir,
+    build_rpath: rocksdb_lib_dir,
+    install_rpath: rocksdb_lib_dir,
 )
 
 project_source_files += ycsbc_db_source
