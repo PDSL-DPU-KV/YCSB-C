@@ -41,3 +41,8 @@ redis/sample
 ycsbc
 
 .vscode/
+subprojects/
+
+# Do not ignore template file in config
+config/*
+!template*

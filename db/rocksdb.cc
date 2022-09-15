@@ -5,80 +5,148 @@
 
 #include "rocksdb.h"
 
-#include <iostream>
-
 #include "coding.h"
 
 using namespace std;
+using namespace rapidjson;
 
 namespace ycsbc {
 RocksDB::RocksDB(const char *dbfilename, utils::Properties &props)
-    : noResult(0), /*cache_(nullptr),*/ dbstats_(nullptr), write_sync_(false) {
-  // set option
+    : noResult(0), dbstats_(nullptr), write_op_(nullptr) {
+  // 1. Open and read from json config file
+  std::string config_file_path =
+      props.GetProperty("dboptions", "../config/rocksdb.json");
+  std::ostringstream file_out_buffer;
+  std::ifstream config_file(config_file_path);
+  file_out_buffer << config_file.rdbuf();
+  std::string config_json_str(file_out_buffer.str());
+  config_file.close();
+  cout << config_json_str << endl;
+  // 2. Parse json string
+  Document doc;
+  doc.Parse(config_json_str.c_str());
+  assert(doc.IsObject());
+  // 3. Set Options
+  write_op_ = new rocksdb::WriteOptions();
   rocksdb::Options options;
-  SetOptions(&options, props);
-
+  options.create_if_missing = true;
+  SetOptions(&options, props, doc);
+  // 4. Open RocksDB
   rocksdb::Status s = rocksdb::DB::Open(options, dbfilename, &db_);
   if (!s.ok()) {
     cerr << "Can't open rocksdb " << dbfilename << " " << s.ToString() << endl;
     exit(0);
   }
+  // 5. Set Remote Compaction
+  auto iter_rc_options = doc.FindMember("RemoteCompaction");
+  if (iter_rc_options != doc.MemberEnd()) {
+    auto rc_options = iter_rc_options->value.GetObject();
+    auto iter_use_rc = rc_options.FindMember("use_remote_compaction");
+    if (iter_use_rc != rc_options.MemberEnd() && iter_use_rc->value.GetBool()) {
+      auto iter = rc_options.FindMember("remote_compaction_use_rdma");
+      bool use_rdma =
+          iter != rc_options.MemberEnd() ? iter->value.GetBool() : true;
+
+      iter = rc_options.FindMember("remote_compaction_server_ip");
+      std::string server_ip = iter != rc_options.MemberEnd()
+                                  ? iter->value.GetString()
+                                  : "127.0.0.1";
+
+      iter = rc_options.FindMember("remote_compaction_server_port");
+      int server_port =
+          iter != rc_options.MemberEnd() ? iter->value.GetInt() : 8411;
+
+      SetupPluggableCompaction(server_ip, server_port, use_rdma);
+    }
+  }
 }
 
-void RocksDB::SetOptions(rocksdb::Options *options, utils::Properties &props) {
-  //// 默认的Rocksdb配置
-  options->create_if_missing = true;
-  // options->compression = rocksdb::kNoCompression;
-  // options->enable_pipelined_write = true;
+void RocksDB::SetOptions(rocksdb::Options *options, utils::Properties &props,
+                         rapidjson::Document &doc) {
+  // 1. Set rocksdb options with config file
+  auto iter = doc.FindMember("write_buffer_size");
+  options->write_buffer_size =
+      iter != doc.MemberEnd() ? iter->value.GetUint64() : 64 << 20;
 
-  options->max_background_compactions = 4;
-  options->max_background_jobs = 4;
-  options->max_bytes_for_level_base = 10ul * 1024 * 1024;
-  options->write_buffer_size = 4ul * 1024 * 1024;
-  // options->max_write_buffer_number = 2;
-  options->target_file_size_base = 4ul * 1024 * 1024;
+  iter = doc.FindMember("max_background_jobs");
+  options->max_background_jobs =
+      iter != doc.MemberEnd() ? iter->value.GetInt() : 2;
 
-  // options->level0_file_num_compaction_trigger = 4;
-  // options->level0_slowdown_writes_trigger = 8;
-  // options->level0_stop_writes_trigger = 12;
+  iter = doc.FindMember("max_background_compactions");
+  options->max_background_compactions =
+      iter != doc.MemberEnd() ? iter->value.GetInt() : -1;
 
-  // options->use_direct_reads = true;
-  // options->use_direct_io_for_flush_and_compaction = true;
+  iter = doc.FindMember("compression_type");
+  std::string compression_type_str =
+      iter != doc.MemberEnd() ? iter->value.GetString() : "no";
+  std::unordered_map<std::string, rocksdb::CompressionType>
+      compression_type_map = {
+          {"no", rocksdb::kNoCompression},
+          {"zlib", rocksdb::kZlibCompression},
+          {"snappy", rocksdb::kSnappyCompression},
+          {"dpu", rocksdb::kDpuCompression},
+          {"lz4", rocksdb::kLZ4Compression},
+      };
+  auto compress_it = compression_type_map.find(compression_type_str);
+  options->compression = compress_it != compression_type_map.end()
+                             ? compress_it->second
+                             : rocksdb::kNoCompression;
+  if (options->compression == rocksdb::kDpuCompression) {
+    if (!rocksdb::Dpu_Compressdev_Init()) {
+      cerr << "Dpu_Compressdev_Init() failed! options->compression set to "
+              "kNoCompression."
+           << endl;
+      options->compression = rocksdb::kNoCompression;
+    }
+  }
 
-  // no block cache
-  rocksdb::BlockBasedTableOptions table_options;
-  table_options.no_block_cache = true;
-  options->table_factory.reset(
-      rocksdb::NewBlockBasedTableFactory(table_options));
+  iter = doc.FindMember("use_direct_io_for_flush_and_compaction");
+  options->use_direct_io_for_flush_and_compaction =
+      iter != doc.MemberEnd() ? iter->value.GetBool() : false;
 
-  /*
-  //cache
-uint64_t nums = stoi(props.GetProperty(CoreWorkload::RECORD_COUNT_PROPERTY));
-uint32_t key_len = stoi(props.GetProperty(CoreWorkload::KEY_LENGTH));
-uint32_t value_len =
-stoi(props.GetProperty(CoreWorkload::FIELD_LENGTH_PROPERTY));
+  iter = doc.FindMember("use_direct_reads");
+  options->use_direct_reads =
+      iter != doc.MemberEnd() ? iter->value.GetBool() : false;
+  // 2. Set rocksdb write options with config file
+  iter = doc.FindMember("WriteOptions");
+  if (iter != doc.MemberEnd()) {
+    auto write_options = iter->value.GetObject();
 
-uint32_t cache_size = nums * (key_len + value_len) * 10 / 100; //10%
-if(cache_size < 8 << 20){   //不小于8MB；
-cache_size = 8 << 20;
-}
+    auto iter_write_op = write_options.FindMember("disableWAL");
+    write_op_->disableWAL = iter_write_op != write_options.MemberEnd()
+                                ? iter_write_op->value.GetBool()
+                                : false;
 
-//cache_ = rocksdb::NewLRUCache(cache_size);
-if(options->table_factory->GetOptions() != nullptr){
-rocksdb::BlockBasedTableOptions* table_options =
-reinterpret_cast<rocksdb::BlockBasedTableOptions*>(options->table_factory->GetOptions());
-//table_options->block_cache = cache_;
-table_options->filter_policy.reset(rocksdb::NewBloomFilterPolicy(10,false));
-}
-*/
-
+    iter_write_op = write_options.FindMember("sync");
+    write_op_->sync = iter_write_op != write_options.MemberEnd()
+                          ? iter_write_op->value.GetBool()
+                          : false;
+  }
+  // 3. Set statistics or not
   bool statistics = utils::StrToBool(props["dbstatistics"]);
   if (statistics) {
     dbstats_ = rocksdb::CreateDBStatistics();
     options->statistics = dbstats_;
   }
+}
 
-  write_sync_ = false;  //主要是写日志，
+// Wire up all compaction requests through our pluggable service
+void RocksDB::SetupPluggableCompaction(const std::string &server_ip,
+                                       const int server_port,
+                                       const bool use_rdma) {
+  // create a service object
+  std::unique_ptr<rocksdb::PluggableCompactionService> service;
+  service.reset(rocksdb::NewGenericPluggableCompactionService(
+      db_->GetName(), server_ip, server_port, use_rdma));
+  // Setup our local DB to invoke a custom service. This will ensure that
+  // all compaction requests will flow through the service object. The
+  // service object forwards the compaction requests to the clone.
+  db_->RegisterPluggableCompactionService(std::move(service));
+}
+
+void RocksDB::CleanupPluggableCompaction() {
+  // UnRegister
+  db_->UnRegisterPluggableCompactionService();
 }
 
 int RocksDB::Read(const std::string &table, const std::string &key,
@@ -134,11 +202,8 @@ int RocksDB::Insert(const std::string &table, const std::string &key,
       printf("put field:key:%lu-%s
   value:%lu-%s\n",kv.first.size(),kv.first.data(),kv.second.size(),kv.second.data());
   } */
-  rocksdb::WriteOptions write_options = rocksdb::WriteOptions();
-  if (write_sync_) {
-    write_options.sync = true;
-  }
-  s = db_->Put(write_options, key, value);
+
+  s = db_->Put(*write_op_, key, value);
   if (!s.ok()) {
     cerr << "insert error\n" << endl;
     exit(0);
@@ -154,11 +219,8 @@ int RocksDB::Update(const std::string &table, const std::string &key,
 
 int RocksDB::Delete(const std::string &table, const std::string &key) {
   rocksdb::Status s;
-  rocksdb::WriteOptions write_options = rocksdb::WriteOptions();
-  if (write_sync_) {
-    write_options.sync = true;
-  }
-  s = db_->Delete(write_options, key);
+
+  s = db_->Delete(*write_op_, key);
   if (!s.ok()) {
     cerr << "Delete error\n" << endl;
     exit(0);
@@ -178,7 +240,13 @@ void RocksDB::PrintStats() {
 }
 
 RocksDB::~RocksDB() {
+  CleanupPluggableCompaction();
+  auto compression_type = db_->GetOptions().compression;
   delete db_;
+  delete write_op_;
+  if (compression_type == rocksdb::kDpuCompression) {
+    rocksdb::Dpu_Compressdev_Destroy();
+  }
   /*if (cache_.get() != nullptr) {
        this will leak, but we're shutting down so nobody cares
       cache_->DisownData();

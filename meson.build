@@ -15,10 +15,16 @@ librocksdb_dep = declare_dependency(
     link_args: ['-L' + rocksdb_lib_dir, '-lrocksdb'],
     include_directories: include_directories(rocksdb_include_dir)
 )
+
+rapidjson = subproject('rapidjson')
+rapidjson_dep = rapidjson.get_variable('rapidjson_dep')
+
+
 project_dependencies = [
     pthread_dep,
     protobuf_dep,
-    librocksdb_dep
+    librocksdb_dep,
+    rapidjson_dep
 ]
 
 project_link_flags = []

@@ -1,0 +1,18 @@
+{
+    "write_buffer_size": 67108864,
+    "max_background_jobs": 6,
+    "max_background_compactions": -1,
+    "compression_type": "dpu",
+    "use_direct_io_for_flush_and_compaction": true,
+    "use_direct_reads": true,
+    "WriteOptions": {
+        "disableWAL": false,
+        "sync": false
+    },
+    "RemoteCompaction": {
+        "use_remote_compaction": false,
+        "remote_compaction_use_rdma": true,
+        "remote_compaction_server_ip": "192.168.200.17",
+        "remote_compaction_server_port": 18411
+    }
+}

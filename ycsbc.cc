@@ -203,13 +203,13 @@ string ParseCommandLine(int argc, const char *argv[],
       }
       props.SetProperty("run", argv[argindex]);
       argindex++;
-    } else if (strcmp(argv[argindex], "-dboption") == 0) {
+    } else if (strcmp(argv[argindex], "-dboptions") == 0) {
       argindex++;
       if (argindex >= argc) {
         UsageMessage(argv[0]);
         exit(0);
       }
-      props.SetProperty("dboption", argv[argindex]);
+      props.SetProperty("dboptions", argv[argindex]);
       argindex++;
     } else if (strcmp(argv[argindex], "-dbstatistics") == 0) {
       argindex++;
