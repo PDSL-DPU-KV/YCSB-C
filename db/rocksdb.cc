@@ -240,13 +240,17 @@ void RocksDB::PrintStats() {
 }
 
 RocksDB::~RocksDB() {
+  printf("wait delete remote_compaction...\n");
   CleanupPluggableCompaction();
   auto compression_type = db_->GetOptions().compression;
+  printf("wait delete db...\n");
   delete db_;
   delete write_op_;
   if (compression_type == rocksdb::kDpuCompression) {
+    printf("wait delete Dpu_Compressdev...\n");
     rocksdb::Dpu_Compressdev_Destroy();
   }
+  printf("all clear!\n");
   /*if (cache_.get() != nullptr) {
        this will leak, but we're shutting down so nobody cares
       cache_->DisownData();
@@ -287,5 +291,10 @@ void RocksDB::DeSerializeValues(std::string &value, std::vector<KVPair> &kvs) {
     offset += value_size;
     kvs.push_back(pair);
   }
+}
+
+bool RocksDB::HaveBalancedDistribution() {
+  return true;
+  // return db_->HaveBalancedDistribution();
 }
 }  // namespace ycsbc

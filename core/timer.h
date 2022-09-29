@@ -9,7 +9,15 @@
 #ifndef YCSB_C_TIMER_H_
 #define YCSB_C_TIMER_H_
 
+#include <sys/time.h>
+
 #include <chrono>
+
+uint64_t get_now_micros() {
+  struct timeval tv;
+  gettimeofday(&tv, NULL);
+  return (tv.tv_sec) * 1000000 + tv.tv_usec;
+}
 
 namespace utils {
 

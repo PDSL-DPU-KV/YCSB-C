@@ -60,6 +60,7 @@ class RocksDB : public DB {
   void CleanupPluggableCompaction();
   void SerializeValues(std::vector<KVPair> &kvs, std::string &value);
   void DeSerializeValues(std::string &value, std::vector<KVPair> &kvs);
+  bool HaveBalancedDistribution();
 };
 
 }  // namespace ycsbc

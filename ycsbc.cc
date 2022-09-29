@@ -6,6 +6,8 @@
 //  Copyright (c) 2014 Jinglei Ren <jinglei@ren.systems>.
 //
 
+#include <unistd.h>
+
 #include <cstring>
 #include <future>
 #include <iostream>
@@ -19,6 +21,11 @@
 #include "utils.h"
 
 using namespace std;
+
+////statistics
+uint64_t ops_cnt[ycsbc::Operation::READMODIFYWRITE + 1] = {0};   //操作个数
+uint64_t ops_time[ycsbc::Operation::READMODIFYWRITE + 1] = {0};  //微秒
+////
 
 void UsageMessage(const char *command);
 bool StrStartWith(const char *str, const char *pre);
@@ -58,6 +65,7 @@ int DelegateClient(ycsbc::DB *db, ycsbc::CoreWorkload *wl, const int num_ops,
       oks += client.DoTransaction();
     }
   }
+  db->Close();
   return oks;
 }
 
@@ -72,50 +80,109 @@ int main(const int argc, const char *argv[]) {
     exit(0);
   }
 
+  PrintInfo(props);
+
   ycsbc::CoreWorkload wl;
   wl.Init(props);
 
   const int num_threads = stoi(props.GetProperty("threadcount", "1"));
+  const bool load = utils::StrToBool(props.GetProperty("load", "false"));
+  const bool run = utils::StrToBool(props.GetProperty("run", "false"));
+  const bool print_stats = utils::StrToBool(props["dbstatistics"]);
+  const bool wait_for_balance = utils::StrToBool(props["dbwaitforbalance"]);
 
-  // Loads data
   vector<future<int>> actual_ops;
-  int total_ops = stoi(props[ycsbc::CoreWorkload::RECORD_COUNT_PROPERTY]);
-  for (int i = 0; i < num_threads; ++i) {
-    actual_ops.emplace_back(async(launch::async, DelegateClient, db, &wl,
-                                  total_ops / num_threads, true));
-  }
-  assert((int)actual_ops.size() == num_threads);
-
+  int total_ops = 0;
   int sum = 0;
-  for (auto &n : actual_ops) {
-    assert(n.valid());
-    sum += n.get();
-  }
-  cerr << "# Loading records:\t" << sum << endl;
-
-  // Peforms transactions
-  actual_ops.clear();
-  total_ops = stoi(props[ycsbc::CoreWorkload::OPERATION_COUNT_PROPERTY]);
   utils::Timer<double> timer;
-  timer.Start();
-  for (int i = 0; i < num_threads; ++i) {
-    actual_ops.emplace_back(async(launch::async, DelegateClient, db, &wl,
-                                  total_ops / num_threads, false));
-  }
-  assert((int)actual_ops.size() == num_threads);
 
-  sum = 0;
-  for (auto &n : actual_ops) {
-    assert(n.valid());
-    sum += n.get();
-  }
-  double duration = timer.End();
-  cerr << "# Transaction throughput (KTPS)" << endl;
-  cerr << props["dbname"] << '\t' << file_name << '\t' << num_threads << '\t';
-  cerr << total_ops / duration / 1000 << endl;
+  if (load) {
+    uint64_t load_start = get_now_micros();
+    total_ops = stoi(props[ycsbc::CoreWorkload::RECORD_COUNT_PROPERTY]);
+    for (int i = 0; i < num_threads; ++i) {
+      actual_ops.emplace_back(async(launch::async, DelegateClient, db, &wl,
+                                    total_ops / num_threads, true));
+    }
+    assert((int)actual_ops.size() == num_threads);
 
-  db->PrintStats();
-  db->Close();
+    sum = 0;
+    for (auto &n : actual_ops) {
+      assert(n.valid());
+      sum += n.get();
+    }
+    uint64_t load_end = get_now_micros();
+    uint64_t use_time = load_end - load_start;
+    printf("********** load result **********\n");
+    printf("loading records:%d  use time:%.3f s  IOPS:%.2f iops\n", sum,
+           1.0 * use_time * 1e-6, 1.0 * sum * 1e6 / use_time);
+    printf("*********************************\n");
+  }
+
+  if (run) {
+    // Peforms transactions
+    actual_ops.clear();
+    total_ops = stoi(props[ycsbc::CoreWorkload::OPERATION_COUNT_PROPERTY]);
+    uint64_t run_start = get_now_micros();
+    for (int i = 0; i < num_threads; ++i) {
+      actual_ops.emplace_back(async(launch::async, DelegateClient, db, &wl,
+                                    total_ops / num_threads, false));
+    }
+    assert((int)actual_ops.size() == num_threads);
+
+    sum = 0;
+    for (auto &n : actual_ops) {
+      assert(n.valid());
+      sum += n.get();
+    }
+    uint64_t run_end = get_now_micros();
+    uint64_t use_time = run_end - run_start;
+
+    printf("********** run result **********\n");
+    printf("all opeartion records:%d  use time:%.3f s  IOPS:%.2f iops\n\n", sum,
+           1.0 * use_time * 1e-6, 1.0 * sum * 1e6 / use_time);
+    if (ops_cnt[ycsbc::INSERT])
+      printf("insert ops:%7lu  use time:%7.3f s  IOPS:%7.2f iops\n",
+             ops_cnt[ycsbc::INSERT], 1.0 * ops_time[ycsbc::INSERT] * 1e-6,
+             1.0 * ops_cnt[ycsbc::INSERT] * 1e6 / ops_time[ycsbc::INSERT]);
+    if (ops_cnt[ycsbc::READ])
+      printf("read ops  :%7lu  use time:%7.3f s  IOPS:%7.2f iops\n",
+             ops_cnt[ycsbc::READ], 1.0 * ops_time[ycsbc::READ] * 1e-6,
+             1.0 * ops_cnt[ycsbc::READ] * 1e6 / ops_time[ycsbc::READ]);
+    if (ops_cnt[ycsbc::UPDATE])
+      printf("update ops:%7lu  use time:%7.3f s  IOPS:%7.2f iops\n",
+             ops_cnt[ycsbc::UPDATE], 1.0 * ops_time[ycsbc::UPDATE] * 1e-6,
+             1.0 * ops_cnt[ycsbc::UPDATE] * 1e6 / ops_time[ycsbc::UPDATE]);
+    if (ops_cnt[ycsbc::SCAN])
+      printf("scan ops  :%7lu  use time:%7.3f s  IOPS:%7.2f iops\n",
+             ops_cnt[ycsbc::SCAN], 1.0 * ops_time[ycsbc::SCAN] * 1e-6,
+             1.0 * ops_cnt[ycsbc::SCAN] * 1e6 / ops_time[ycsbc::SCAN]);
+    if (ops_cnt[ycsbc::READMODIFYWRITE])
+      printf("rmw ops   :%7lu  use time:%7.3f s  IOPS:%7.2f iops\n",
+             ops_cnt[ycsbc::READMODIFYWRITE],
+             1.0 * ops_time[ycsbc::READMODIFYWRITE] * 1e-6,
+             1.0 * ops_cnt[ycsbc::READMODIFYWRITE] * 1e6 /
+                 ops_time[ycsbc::READMODIFYWRITE]);
+    printf("********************************\n");
+  }
+  if (print_stats) {
+    printf("-------------- db statistics --------------\n");
+    db->PrintStats();
+    printf("-------------------------------------------\n");
+  }
+  if (wait_for_balance) {
+    uint64_t sleep_time = 0;
+    while (!db->HaveBalancedDistribution()) {
+      sleep(10);
+      sleep_time += 10;
+    }
+    printf("Wait balance:%lu s\n", sleep_time);
+
+    printf("-------------- db statistics --------------\n");
+    db->PrintStats();
+    printf("-------------------------------------------\n");
+  }
+  delete db;
+  return 0;
 }
 
 string ParseCommandLine(int argc, const char *argv[],
@@ -227,14 +294,6 @@ string ParseCommandLine(int argc, const char *argv[],
       }
       props.SetProperty("dbwaitforbalance", argv[argindex]);
       argindex++;
-    } else if (strcmp(argv[argindex], "-morerun") == 0) {
-      argindex++;
-      if (argindex >= argc) {
-        UsageMessage(argv[0]);
-        exit(0);
-      }
-      props.SetProperty("morerun", argv[argindex]);
-      argindex++;
     } else {
       cout << "Unknown option '" << argv[argindex] << "'" << endl;
       exit(0);
@@ -276,7 +335,6 @@ void Init(utils::Properties &props) {
   props.SetProperty("dboption", "0");
   props.SetProperty("dbstatistics", "false");
   props.SetProperty("dbwaitforbalance", "false");
-  props.SetProperty("morerun", "");
 }
 
 void PrintInfo(utils::Properties &props) {
