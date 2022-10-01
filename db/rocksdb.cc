@@ -67,14 +67,38 @@ void RocksDB::SetOptions(rocksdb::Options *options, utils::Properties &props,
   auto iter = doc.FindMember("write_buffer_size");
   options->write_buffer_size =
       iter != doc.MemberEnd() ? iter->value.GetUint64() : 64 << 20;
-
-  iter = doc.FindMember("max_background_jobs");
-  options->max_background_jobs =
+  
+  iter = doc.FindMember("target_file_size_base");
+  options->target_file_size_base =
+      iter != doc.MemberEnd() ? iter->value.GetUint64() : 64 << 20;
+  
+  iter = doc.FindMember("max_write_buffer_number");
+  options->max_write_buffer_number =
       iter != doc.MemberEnd() ? iter->value.GetInt() : 2;
+  
+  iter = doc.FindMember("max_bytes_for_level_base");
+  options->max_bytes_for_level_base =
+      iter != doc.MemberEnd() ? iter->value.GetUint64() : 256 << 20;
+  
+  iter = doc.FindMember("wal_bytes_per_sync");
+  options->wal_bytes_per_sync =
+      iter != doc.MemberEnd() ? iter->value.GetUint64() : 0;
+
+  iter = doc.FindMember("max_background_flushes");
+  options->max_background_flushes =
+      iter != doc.MemberEnd() ? iter->value.GetInt() : -1;
 
   iter = doc.FindMember("max_background_compactions");
   options->max_background_compactions =
       iter != doc.MemberEnd() ? iter->value.GetInt() : -1;
+  
+  iter = doc.FindMember("max_background_jobs");
+  options->max_background_jobs =
+      iter != doc.MemberEnd() ? iter->value.GetInt() : 2;
+  
+  iter = doc.FindMember("max_subcompactions");
+  options->max_subcompactions =
+      iter != doc.MemberEnd() ? iter->value.GetUint() : 1;
 
   iter = doc.FindMember("compression_type");
   std::string compression_type_str =
@@ -107,6 +131,10 @@ void RocksDB::SetOptions(rocksdb::Options *options, utils::Properties &props,
   iter = doc.FindMember("use_direct_reads");
   options->use_direct_reads =
       iter != doc.MemberEnd() ? iter->value.GetBool() : false;
+  
+  iter = doc.FindMember("stats_dump_period_sec");
+  options->stats_dump_period_sec =
+      iter != doc.MemberEnd() ? iter->value.GetUint() : 600;
   // 2. Set rocksdb write options with config file
   iter = doc.FindMember("WriteOptions");
   if (iter != doc.MemberEnd()) {
@@ -231,9 +259,12 @@ int RocksDB::Delete(const std::string &table, const std::string &key) {
 void RocksDB::PrintStats() {
   if (noResult) cout << "read not found:" << noResult << endl;
   string stats;
-  db_->GetProperty("rocksdb.stats", &stats);
-  cout << stats << endl;
-
+  if (db_->GetProperty("rocksdb.stats", &stats)) {
+    cout << stats << endl;
+  }
+  if (db_->GetProperty("rocksdb.aggregated-table-properties", &stats)) {
+    cout << stats <<endl;
+  }
   if (dbstats_.get() != nullptr) {
     fprintf(stdout, "STATISTICS:\n%s\n", dbstats_->ToString().c_str());
   }
@@ -294,7 +325,7 @@ void RocksDB::DeSerializeValues(std::string &value, std::vector<KVPair> &kvs) {
 }
 
 bool RocksDB::HaveBalancedDistribution() {
-  return true;
-  // return db_->HaveBalancedDistribution();
+  // return true;
+  return db_->HaveBalancedDistribution();
 }
 }  // namespace ycsbc
