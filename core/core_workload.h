@@ -185,6 +185,7 @@ class CoreWorkload {
   CounterGenerator insert_key_sequence_;
   bool ordered_inserts_;
   size_t record_count_;
+  utils::RandomGenerator *gen_;
 };
 
 inline std::string CoreWorkload::NextSequenceKey() {

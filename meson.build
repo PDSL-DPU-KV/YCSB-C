@@ -5,11 +5,12 @@ project(
     default_options: ['cpp_std=c++11'],
 )
 
-rocksdb_lib_dir = '/home/xyq/workspace/rocksdb-tikv-5.4/build'
-rocksdb_include_dir = '/home/xyq/workspace/rocksdb-tikv-5.4/include'
+rocksdb_lib_dir = '/home/dc/workspace/rocksdb-rc/build'
+rocksdb_include_dir = '/home/dc/workspace/rocksdb-rc/include'
 
 pthread_dep = dependency('threads')
 protobuf_dep = dependency('protobuf', version: '>=3.20.1')
+#protobuf_dep = dependency('protobuf')
 # librocksdb_dep = dependency('librocksdb')
 librocksdb_dep = declare_dependency(
     link_args: ['-L' + rocksdb_lib_dir, '-lrocksdb'],

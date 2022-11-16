@@ -132,6 +132,10 @@ void RocksDB::SetOptions(rocksdb::Options *options, utils::Properties &props,
   options->use_direct_reads =
       iter != doc.MemberEnd() ? iter->value.GetBool() : false;
   
+  iter = doc.FindMember("report_bg_io_stats");
+  options->report_bg_io_stats =
+      iter != doc.MemberEnd() ? iter->value.GetBool() : false;
+
   iter = doc.FindMember("stats_dump_period_sec");
   options->stats_dump_period_sec =
       iter != doc.MemberEnd() ? iter->value.GetUint() : 600;
@@ -225,11 +229,10 @@ int RocksDB::Insert(const std::string &table, const std::string &key,
   rocksdb::Status s;
   string value;
   SerializeValues(values, value);
-  /* printf("put:key:%lu-%s\n",key.size(),key.data());
-  for( auto kv : values) {
-      printf("put field:key:%lu-%s
-  value:%lu-%s\n",kv.first.size(),kv.first.data(),kv.second.size(),kv.second.data());
-  } */
+  // printf("put:key:%lu-%s\n",key.size(),key.data());
+  // for( auto kv : values) {
+  //     printf("put field:key:%lu-%s value:%lu-%s\n",kv.first.size(),kv.first.data(),kv.second.size(),kv.second.data());
+  // }
 
   s = db_->Put(*write_op_, key, value);
   if (!s.ok()) {
@@ -328,4 +331,5 @@ bool RocksDB::HaveBalancedDistribution() {
   // return true;
   return db_->HaveBalancedDistribution();
 }
+
 }  // namespace ycsbc

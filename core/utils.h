@@ -13,6 +13,9 @@
 #include <cstdint>
 #include <exception>
 #include <random>
+#include <string>
+#include <assert.h>
+#include "random.h"
 
 namespace utils {
 
@@ -44,6 +47,66 @@ inline double RandomDouble(double min = 0.0, double max = 1.0) {
 /// Returns an ASCII code that can be printed to desplay
 ///
 inline char RandomPrintChar() { return rand() % 94 + 33; }
+
+inline void RandomBytes(std::string &value, uint64_t len) {
+  for (uint64_t i = 0; i < len; ++i) {
+    value.append(1, RandomPrintChar());
+  }
+}
+
+inline void RandomString(Random* rnd, int len, std::string* dst) {
+  dst->resize(len);
+  for (int i = 0; i < len; i++) {
+    (*dst)[i] = static_cast<char>(' ' + rnd->Uniform(95));  // ' ' .. '~'
+  }
+}
+
+inline void CompressibleString(Random* rnd, double compressed_fraction,
+                                int len, std::string* dst) {
+  int raw = static_cast<int>(len * compressed_fraction);
+  if (raw < 1) raw = 1;
+  std::string raw_data;
+  RandomString(rnd, raw, &raw_data);
+
+  // Duplicate the random data until we have filled "len" bytes
+  dst->clear();
+  while (dst->size() < (unsigned int)len) {
+    dst->append(raw_data);
+  }
+  dst->resize(len);
+}
+
+// Helper for quickly generating random data.
+class RandomGenerator {
+ private:
+  std::string data_;
+  unsigned int pos_;
+
+ public:
+  RandomGenerator() {
+    // We use a limited amount of data over and over again and ensure
+    // that it is larger than the compression window (32KB), and also
+    // large enough to serve all typical value sizes we want to write.
+    Random rnd(301);
+    std::string piece;
+    while (data_.size() < (unsigned)std::max(1048576, 1000)) {
+      // Add a short fragment that is as compressible as specified
+      // by FLAGS_compression_ratio.
+      utils::CompressibleString(&rnd, 0.5, 100, &piece);
+      data_.append(piece);
+    }
+    pos_ = 0;
+  }
+
+  std::string Generate(unsigned int len) {
+    assert(len <= data_.size());
+    if (pos_ + len > data_.size()) {
+      pos_ = 0;
+    }
+    pos_ += len;
+    return data_.substr(pos_ - len, len);
+  }
+};
 
 class Exception : public std::exception {
  public:
