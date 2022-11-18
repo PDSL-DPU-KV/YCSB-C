@@ -41,7 +41,9 @@ redis/sample
 ycsbc
 
 .vscode/
-subprojects/
+subprojects/*
+!subprojects/*.wrap
+!subprojects/packagecache
 
 # Do not ignore template file in config
 config/*
