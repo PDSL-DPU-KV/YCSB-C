@@ -9,9 +9,8 @@ rocksdb_lib_dir = '/home/dc/workspace/rocksdb-rc/build'
 rocksdb_include_dir = '/home/dc/workspace/rocksdb-rc/include'
 
 pthread_dep = dependency('threads')
+hdr_histogram_dep = dependency('hdr_histogram')
 protobuf_dep = dependency('protobuf', version: '>=3.20.1')
-#protobuf_dep = dependency('protobuf')
-# librocksdb_dep = dependency('librocksdb')
 librocksdb_dep = declare_dependency(
     link_args: ['-L' + rocksdb_lib_dir, '-lrocksdb'],
     include_directories: include_directories(rocksdb_include_dir)
@@ -23,6 +22,7 @@ rapidjson_dep = rapidjson.get_variable('rapidjson_dep')
 
 project_dependencies = [
     pthread_dep,
+    hdr_histogram_dep,
     protobuf_dep,
     librocksdb_dep,
     rapidjson_dep

@@ -9,6 +9,7 @@
 #ifndef YCSB_C_CLIENT_H_
 #define YCSB_C_CLIENT_H_
 
+#include <hdr/hdr_histogram.h>
 #include <string>
 
 #include "core_workload.h"
@@ -18,6 +19,8 @@
 
 extern uint64_t ops_cnt[ycsbc::Operation::READMODIFYWRITE + 1];   //操作个数
 extern uint64_t ops_time[ycsbc::Operation::READMODIFYWRITE + 1];  //微秒
+extern struct hdr_histogram* histograms[ycsbc::Operation::READMODIFYWRITE + 1];
+extern struct hdr_histogram* overall_histogram;
 
 namespace ycsbc {
 
@@ -51,31 +54,67 @@ inline bool Client::DoInsert() {
 inline bool Client::DoTransaction() {
   int status = -1;
   uint64_t start_time = get_now_micros();
+  uint64_t elapsed = 0;
 
   switch (workload_.NextOperation()) {
     case READ:
       status = TransactionRead();
-      ops_time[READ] += (get_now_micros() - start_time);
+      elapsed = get_now_micros() - start_time;
+      if (elapsed > 3600000000) {
+        printf("too large tx_xtime\n");
+      } else {
+        hdr_record_value_atomic(overall_histogram, elapsed);
+        hdr_record_value_atomic(histograms[ycsbc::Operation::READ], elapsed);
+      }
+      ops_time[READ] += elapsed;
       ops_cnt[READ]++;
       break;
     case UPDATE:
       status = TransactionUpdate();
-      ops_time[UPDATE] += (get_now_micros() - start_time);
+      elapsed = get_now_micros() - start_time;
+      if (elapsed > 3600000000) {
+        printf("too large tx_xtime\n");
+      } else {
+        hdr_record_value_atomic(overall_histogram, elapsed);
+        hdr_record_value_atomic(histograms[ycsbc::Operation::UPDATE], elapsed);
+      }
+      ops_time[UPDATE] += elapsed;
       ops_cnt[UPDATE]++;
       break;
     case INSERT:
       status = TransactionInsert();
-      ops_time[INSERT] += (get_now_micros() - start_time);
+      elapsed = get_now_micros() - start_time;
+      if (elapsed > 3600000000) {
+        printf("too large tx_xtime\n");
+      } else {
+        hdr_record_value_atomic(overall_histogram, elapsed);
+        hdr_record_value_atomic(histograms[ycsbc::Operation::INSERT], elapsed);
+      }
+      ops_time[INSERT] += elapsed;
       ops_cnt[INSERT]++;
       break;
     case SCAN:
       status = TransactionScan();
-      ops_time[SCAN] += (get_now_micros() - start_time);
+      elapsed = get_now_micros() - start_time;
+      if (elapsed > 3600000000) {
+        printf("too large tx_xtime\n");
+      } else {
+        hdr_record_value_atomic(overall_histogram, elapsed);
+        hdr_record_value_atomic(histograms[ycsbc::Operation::SCAN], elapsed);
+      }
+      ops_time[SCAN] += elapsed;
       ops_cnt[SCAN]++;
       break;
     case READMODIFYWRITE:
       status = TransactionReadModifyWrite();
-      ops_time[READMODIFYWRITE] += (get_now_micros() - start_time);
+      elapsed = get_now_micros() - start_time;
+      if (elapsed > 3600000000) {
+        printf("too large tx_xtime\n");
+      } else {
+        hdr_record_value_atomic(overall_histogram, elapsed);
+        hdr_record_value_atomic(histograms[ycsbc::Operation::READMODIFYWRITE], elapsed);
+      }
+      ops_time[READMODIFYWRITE] += elapsed;
       ops_cnt[READMODIFYWRITE]++;
       break;
     default:

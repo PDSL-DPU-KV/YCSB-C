@@ -6,8 +6,10 @@
 //  Copyright (c) 2014 Jinglei Ren <jinglei@ren.systems>.
 //
 
+#include <hdr/hdr_histogram.h>
 #include <unistd.h>
 
+#include <cstdint>
 #include <cstring>
 #include <future>
 #include <iostream>
@@ -25,6 +27,8 @@ using namespace std;
 ////statistics
 uint64_t ops_cnt[ycsbc::Operation::READMODIFYWRITE + 1] = {0};   //操作个数
 uint64_t ops_time[ycsbc::Operation::READMODIFYWRITE + 1] = {0};  //微秒
+struct hdr_histogram* histograms[ycsbc::Operation::READMODIFYWRITE + 1];
+struct hdr_histogram* overall_histogram;
 ////
 
 void UsageMessage(const char *command);
@@ -91,6 +95,20 @@ int main(const int argc, const char *argv[]) {
   const bool print_stats = utils::StrToBool(props["dbstatistics"]);
   const bool wait_for_balance = utils::StrToBool(props["dbwaitforbalance"]);
 
+  // Initialise the histogram
+  int res = hdr_init(1, INT64_C(3600000000), 3, &overall_histogram);
+  if ((res != 0) || (overall_histogram == NULL)) {
+    printf("Failed to init overall histogram!\n");
+    exit(0);
+  }
+  for (int i = 0; i < ycsbc::Operation::READMODIFYWRITE + 1; ++i) {
+    res = hdr_init(1, INT64_C(3600000000), 3, &histograms[i]);
+    if ((res != 0) || (histograms[i] == NULL)) {
+      printf("Failed to init histogram %d!\n", i);
+      exit(0);
+    }
+  }
+
   vector<future<int>> actual_ops;
   int total_ops = 0;
   int sum = 0;
@@ -140,28 +158,69 @@ int main(const int argc, const char *argv[]) {
     printf("********** run result **********\n");
     printf("all opeartion records:%d  use time:%.3f s  IOPS:%.2f iops\n\n", sum,
            1.0 * use_time * 1e-6, 1.0 * sum * 1e6 / use_time);
-    if (ops_cnt[ycsbc::INSERT])
+    printf("average: %lf, 95th: %ld, 99th: %ld, 99.9th: %ld, 99.99th: %ld\n",
+            hdr_mean(overall_histogram), 
+            hdr_value_at_percentile(overall_histogram, 95),
+            hdr_value_at_percentile(overall_histogram, 99),
+            hdr_value_at_percentile(overall_histogram, 99.9),
+            hdr_value_at_percentile(overall_histogram, 99.99));
+    if (ops_cnt[ycsbc::INSERT]) {
       printf("insert ops:%7lu  use time:%7.3f s  IOPS:%7.2f iops\n",
              ops_cnt[ycsbc::INSERT], 1.0 * ops_time[ycsbc::INSERT] * 1e-6,
              1.0 * ops_cnt[ycsbc::INSERT] * 1e6 / ops_time[ycsbc::INSERT]);
-    if (ops_cnt[ycsbc::READ])
+      printf("average: %lf, 95th: %ld, 99th: %ld, 99.9th: %ld, 99.99th: %ld\n",
+            hdr_mean(histograms[ycsbc::Operation::INSERT]), 
+            hdr_value_at_percentile(histograms[ycsbc::Operation::INSERT], 95),
+            hdr_value_at_percentile(histograms[ycsbc::Operation::INSERT], 99),
+            hdr_value_at_percentile(histograms[ycsbc::Operation::INSERT], 99.9),
+            hdr_value_at_percentile(histograms[ycsbc::Operation::INSERT], 99.99));
+    }
+    if (ops_cnt[ycsbc::READ]) {
       printf("read ops  :%7lu  use time:%7.3f s  IOPS:%7.2f iops\n",
              ops_cnt[ycsbc::READ], 1.0 * ops_time[ycsbc::READ] * 1e-6,
              1.0 * ops_cnt[ycsbc::READ] * 1e6 / ops_time[ycsbc::READ]);
-    if (ops_cnt[ycsbc::UPDATE])
+      printf("average: %lf, 95th: %ld, 99th: %ld, 99.9th: %ld, 99.99th: %ld\n",
+            hdr_mean(histograms[ycsbc::Operation::READ]), 
+            hdr_value_at_percentile(histograms[ycsbc::Operation::READ], 95),
+            hdr_value_at_percentile(histograms[ycsbc::Operation::READ], 99),
+            hdr_value_at_percentile(histograms[ycsbc::Operation::READ], 99.9),
+            hdr_value_at_percentile(histograms[ycsbc::Operation::READ], 99.99));
+    }
+    if (ops_cnt[ycsbc::UPDATE]) {
       printf("update ops:%7lu  use time:%7.3f s  IOPS:%7.2f iops\n",
              ops_cnt[ycsbc::UPDATE], 1.0 * ops_time[ycsbc::UPDATE] * 1e-6,
              1.0 * ops_cnt[ycsbc::UPDATE] * 1e6 / ops_time[ycsbc::UPDATE]);
-    if (ops_cnt[ycsbc::SCAN])
+      printf("average: %lf, 95th: %ld, 99th: %ld, 99.9th: %ld, 99.99th: %ld\n",
+            hdr_mean(histograms[ycsbc::Operation::UPDATE]), 
+            hdr_value_at_percentile(histograms[ycsbc::Operation::UPDATE], 95),
+            hdr_value_at_percentile(histograms[ycsbc::Operation::UPDATE], 99),
+            hdr_value_at_percentile(histograms[ycsbc::Operation::UPDATE], 99.9),
+            hdr_value_at_percentile(histograms[ycsbc::Operation::UPDATE], 99.99));
+    }
+    if (ops_cnt[ycsbc::SCAN]) {
       printf("scan ops  :%7lu  use time:%7.3f s  IOPS:%7.2f iops\n",
              ops_cnt[ycsbc::SCAN], 1.0 * ops_time[ycsbc::SCAN] * 1e-6,
              1.0 * ops_cnt[ycsbc::SCAN] * 1e6 / ops_time[ycsbc::SCAN]);
-    if (ops_cnt[ycsbc::READMODIFYWRITE])
+      printf("average: %lf, 95th: %ld, 99th: %ld, 99.9th: %ld, 99.99th: %ld\n",
+            hdr_mean(histograms[ycsbc::Operation::SCAN]), 
+            hdr_value_at_percentile(histograms[ycsbc::Operation::SCAN], 95),
+            hdr_value_at_percentile(histograms[ycsbc::Operation::SCAN], 99),
+            hdr_value_at_percentile(histograms[ycsbc::Operation::SCAN], 99.9),
+            hdr_value_at_percentile(histograms[ycsbc::Operation::SCAN], 99.99));
+    }
+    if (ops_cnt[ycsbc::READMODIFYWRITE]) {
       printf("rmw ops   :%7lu  use time:%7.3f s  IOPS:%7.2f iops\n",
              ops_cnt[ycsbc::READMODIFYWRITE],
              1.0 * ops_time[ycsbc::READMODIFYWRITE] * 1e-6,
              1.0 * ops_cnt[ycsbc::READMODIFYWRITE] * 1e6 /
                  ops_time[ycsbc::READMODIFYWRITE]);
+      printf("average: %lf, 95th: %ld, 99th: %ld, 99.9th: %ld, 99.99th: %ld\n",
+            hdr_mean(histograms[ycsbc::Operation::READMODIFYWRITE]), 
+            hdr_value_at_percentile(histograms[ycsbc::Operation::READMODIFYWRITE], 95),
+            hdr_value_at_percentile(histograms[ycsbc::Operation::READMODIFYWRITE], 99),
+            hdr_value_at_percentile(histograms[ycsbc::Operation::READMODIFYWRITE], 99.9),
+            hdr_value_at_percentile(histograms[ycsbc::Operation::READMODIFYWRITE], 99.99));
+    }
     printf("********************************\n");
   }
   if (print_stats) {
