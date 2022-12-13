@@ -9,6 +9,8 @@
 #include <rocksdb/options.h>
 #include <rocksdb/pluggable_compaction.h>
 #include <rocksdb/table.h>
+#include <rocksdb/statistics.h>
+#include <rocksdb/utilities/my_statistics/my_log.h>
 
 #include <iostream>
 #include <mutex>

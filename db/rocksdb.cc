@@ -132,6 +132,10 @@ void RocksDB::SetOptions(rocksdb::Options *options, utils::Properties &props,
   options->use_direct_reads =
       iter != doc.MemberEnd() ? iter->value.GetBool() : false;
   
+  iter = doc.FindMember("stats_level");
+  int stats_level =
+      iter != doc.MemberEnd() ? iter->value.GetUint() : 2;
+
   iter = doc.FindMember("report_bg_io_stats");
   options->report_bg_io_stats =
       iter != doc.MemberEnd() ? iter->value.GetBool() : false;
@@ -158,6 +162,7 @@ void RocksDB::SetOptions(rocksdb::Options *options, utils::Properties &props,
   bool statistics = utils::StrToBool(props["dbstatistics"]);
   if (statistics) {
     dbstats_ = rocksdb::CreateDBStatistics();
+    dbstats_->set_stats_level(static_cast<rocksdb::StatsLevel>(stats_level));
     options->statistics = dbstats_;
   }
 }

@@ -21,6 +21,7 @@ DB* DBFactory::CreateDB(utils::Properties& props) {
   if (props["dbname"] == "basic") {
     return new BasicDB;
   } else if (props["dbname"] == "rocksdb") {
+    rocksdb::init_mylog_file();
     std::string dbpath = props.GetProperty("dbpath", "/tmp/ycsbc-rocksdb-test");
     return new RocksDB(dbpath.c_str(), props);
   } else
