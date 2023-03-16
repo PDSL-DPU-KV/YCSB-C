@@ -34,6 +34,9 @@ const string CoreWorkload::FIELD_LENGTH_DISTRIBUTION_DEFAULT = "constant";
 const string CoreWorkload::FIELD_LENGTH_PROPERTY = "fieldlength";
 const string CoreWorkload::FIELD_LENGTH_DEFAULT = "100";
 
+const string CoreWorkload::FIELD_COMPRESS_PROPERTY = "fieldcompressratio";
+const string CoreWorkload::FIELD_COMPRESS_DEFAULT = "0.5";
+
 const string CoreWorkload::READ_ALL_FIELDS_PROPERTY = "readallfields";
 const string CoreWorkload::READ_ALL_FIELDS_DEFAULT = "true";
 
@@ -82,6 +85,7 @@ void CoreWorkload::Init(const utils::Properties &p) {
   field_count_ =
       std::stoi(p.GetProperty(FIELD_COUNT_PROPERTY, FIELD_COUNT_DEFAULT));
   field_len_generator_ = GetFieldLenGenerator(p);
+  field_compression_ratio_ = std::stod(p.GetProperty(FIELD_COMPRESS_DEFAULT, FIELD_COMPRESS_DEFAULT));
 
   double read_proportion = std::stod(
       p.GetProperty(READ_PROPORTION_PROPERTY, READ_PROPORTION_DEFAULT));
@@ -166,7 +170,18 @@ void CoreWorkload::Init(const utils::Properties &p) {
                            scan_len_dist);
   }
 
-  gen_ = new utils::RandomGenerator();
+  int value_size;
+  int field_len =
+      std::stoi(p.GetProperty(FIELD_LENGTH_PROPERTY, FIELD_LENGTH_DEFAULT));
+  string field_len_dist = p.GetProperty(FIELD_LENGTH_DISTRIBUTION_PROPERTY,
+                                        FIELD_LENGTH_DISTRIBUTION_DEFAULT);
+  if (field_len_dist == "constant") {
+    value_size = field_len * field_count_;
+  } else {
+    value_size = 1000;
+    throw utils::Exception("do not support the field len distribution!");
+  }
+  gen_ = new utils::RandomGenerator(value_size, field_compression_ratio_);
 }
 
 ycsbc::Generator<uint64_t> *CoreWorkload::GetFieldLenGenerator(

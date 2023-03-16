@@ -10,6 +10,7 @@
 #include <unistd.h>
 
 #include <cstdint>
+#include <cstdio>
 #include <cstring>
 #include <future>
 #include <iostream>
@@ -19,6 +20,8 @@
 #include "client.h"
 #include "core_workload.h"
 #include "db_factory.h"
+#include "rocksdb/perf_level.h"
+#include "rocksdb/perf_context.h"
 #include "timer.h"
 #include "utils.h"
 
@@ -38,11 +41,14 @@ void Init(utils::Properties &props);
 void PrintInfo(utils::Properties &props);
 
 int DelegateClient(ycsbc::DB *db, ycsbc::CoreWorkload *wl, const int num_ops,
-                   bool is_loading) {
+                   bool is_loading, int perf_level) {
   db->Init();
   ycsbc::Client client(*db, *wl);
   int oks = 0;
   int next_report_ = 0;
+
+  SetPerfLevel(static_cast<rocksdb::PerfLevel>(perf_level));
+  rocksdb::get_perf_context()->EnablePerLevelPerfContext();
 
   for (int i = 0; i < num_ops; ++i) {
     if (i >= next_report_) {
@@ -69,6 +75,10 @@ int DelegateClient(ycsbc::DB *db, ycsbc::CoreWorkload *wl, const int num_ops,
       oks += client.DoTransaction();
     }
   }
+
+  if (perf_level > rocksdb::PerfLevel::kDisable) {
+    fprintf(stderr, "perf context: %s\n", rocksdb::get_perf_context()->ToString().c_str());
+  }
   db->Close();
   return oks;
 }
@@ -93,6 +103,7 @@ int main(const int argc, const char *argv[]) {
   const bool load = utils::StrToBool(props.GetProperty("load", "false"));
   const bool run = utils::StrToBool(props.GetProperty("run", "false"));
   const bool print_stats = utils::StrToBool(props["dbstatistics"]);
+  const int perf_level = stoi(props["perflevel"]);
   const bool wait_for_balance = utils::StrToBool(props["dbwaitforbalance"]);
 
   // Initialise the histogram
@@ -119,7 +130,7 @@ int main(const int argc, const char *argv[]) {
     total_ops = stoi(props[ycsbc::CoreWorkload::RECORD_COUNT_PROPERTY]);
     for (int i = 0; i < num_threads; ++i) {
       actual_ops.emplace_back(async(launch::async, DelegateClient, db, &wl,
-                                    total_ops / num_threads, true));
+                                    total_ops / num_threads, true, perf_level));
     }
     assert((int)actual_ops.size() == num_threads);
 
@@ -143,7 +154,7 @@ int main(const int argc, const char *argv[]) {
     uint64_t run_start = get_now_micros();
     for (int i = 0; i < num_threads; ++i) {
       actual_ops.emplace_back(async(launch::async, DelegateClient, db, &wl,
-                                    total_ops / num_threads, false));
+                                    total_ops / num_threads, false, perf_level));
     }
     assert((int)actual_ops.size() == num_threads);
 
@@ -265,30 +276,6 @@ string ParseCommandLine(int argc, const char *argv[],
       }
       props.SetProperty("dbname", argv[argindex]);
       argindex++;
-    } else if (strcmp(argv[argindex], "-host") == 0) {
-      argindex++;
-      if (argindex >= argc) {
-        UsageMessage(argv[0]);
-        exit(0);
-      }
-      props.SetProperty("host", argv[argindex]);
-      argindex++;
-    } else if (strcmp(argv[argindex], "-port") == 0) {
-      argindex++;
-      if (argindex >= argc) {
-        UsageMessage(argv[0]);
-        exit(0);
-      }
-      props.SetProperty("port", argv[argindex]);
-      argindex++;
-    } else if (strcmp(argv[argindex], "-slaves") == 0) {
-      argindex++;
-      if (argindex >= argc) {
-        UsageMessage(argv[0]);
-        exit(0);
-      }
-      props.SetProperty("slaves", argv[argindex]);
-      argindex++;
     } else if (strcmp(argv[argindex], "-P") == 0) {
       argindex++;
       if (argindex >= argc) {
@@ -345,6 +332,14 @@ string ParseCommandLine(int argc, const char *argv[],
       }
       props.SetProperty("dbstatistics", argv[argindex]);
       argindex++;
+    } else if (strcmp(argv[argindex], "-perflevel") == 0) {
+      argindex++;
+      if (argindex >= argc) {
+        UsageMessage(argv[0]);
+        exit(0);
+      }
+      props.SetProperty("perflevel", argv[argindex]);
+      argindex++;
     } else if (strcmp(argv[argindex], "-dbwaitforbalance") == 0) {
       argindex++;
       if (argindex >= argc) {
@@ -393,6 +388,7 @@ void Init(utils::Properties &props) {
   props.SetProperty("threadcount", "1");
   props.SetProperty("dboption", "0");
   props.SetProperty("dbstatistics", "false");
+  props.SetProperty("perflevel", "3");
   props.SetProperty("dbwaitforbalance", "false");
 }
 

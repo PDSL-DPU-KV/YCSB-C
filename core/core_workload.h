@@ -51,6 +51,12 @@ class CoreWorkload {
   static const std::string FIELD_LENGTH_DEFAULT;
 
   ///
+  /// The compression ratio of the property of a field.
+  ///
+  static const std::string FIELD_COMPRESS_PROPERTY;
+  static const std::string FIELD_COMPRESS_DEFAULT;
+
+  ///
   /// The name of the property for deciding whether to read one field (false)
   /// or all fields (true) of a record.
   ///
@@ -186,6 +192,7 @@ class CoreWorkload {
   bool ordered_inserts_;
   size_t record_count_;
   utils::RandomGenerator *gen_;
+  double field_compression_ratio_;
 };
 
 inline std::string CoreWorkload::NextSequenceKey() {

@@ -4,12 +4,10 @@
 #include <rapidjson/document.h>
 #include <rocksdb/cache.h>
 #include <rocksdb/db.h>
-#include <rocksdb/dpu_deflate_tool.h>
 #include <rocksdb/filter_policy.h>
 #include <rocksdb/options.h>
-#include <rocksdb/pluggable_compaction.h>
-#include <rocksdb/table.h>
 #include <rocksdb/statistics.h>
+#include <rocksdb/table.h>
 #include <rocksdb/utilities/my_statistics/my_log.h>
 
 #include <iostream>
@@ -57,9 +55,6 @@ class RocksDB : public DB {
 
   void SetOptions(rocksdb::Options *options, utils::Properties &props,
                   rapidjson::Document &doc);
-  void SetupPluggableCompaction(const std::string &server_ip,
-                                const int server_port, const bool use_rdma);
-  void CleanupPluggableCompaction();
   void SerializeValues(std::vector<KVPair> &kvs, std::string &value);
   void DeSerializeValues(std::string &value, std::vector<KVPair> &kvs);
   bool HaveBalancedDistribution();

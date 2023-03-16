@@ -1,18 +1,23 @@
 {
     "write_buffer_size": 67108864,
-    "max_background_jobs": 6,
-    "max_background_compactions": -1,
-    "compression_type": "dpu",
-    "use_direct_io_for_flush_and_compaction": true,
+    "max_write_buffer_number": 2,
+    "max_background_flushes": 1,
+    "max_background_compactions": 16,
+    "subcompactions": 4,
+    "compression_type": "zstd",
+    "num_levels": 7,
+    "min_level_to_compress": 3,
     "use_direct_reads": true,
-    "WriteOptions": {
-        "disableWAL": false,
-        "sync": false
+    "use_direct_io_for_flush_and_compaction": true,
+    "report_bg_io_stats": true,
+    "disable_auto_compactions": false,
+    "statistics": true,
+    "stat_level": 3,
+    "TableOptions": {
+        "bloom_bits": 10
     },
-    "RemoteCompaction": {
-        "use_remote_compaction": false,
-        "remote_compaction_use_rdma": true,
-        "remote_compaction_server_ip": "192.168.200.17",
-        "remote_compaction_server_port": 18411
+    "WriteOptions": {
+        "disableWAL": true,
+        "sync": false
     }
 }

@@ -83,16 +83,16 @@ class RandomGenerator {
   unsigned int pos_;
 
  public:
-  RandomGenerator() {
+  RandomGenerator(int value_size, double compress_ratio) {
     // We use a limited amount of data over and over again and ensure
     // that it is larger than the compression window (32KB), and also
     // large enough to serve all typical value sizes we want to write.
     Random rnd(301);
     std::string piece;
-    while (data_.size() < (unsigned)std::max(1048576, 1000)) {
+    while (data_.size() < (unsigned)std::max(1048576, value_size)) {
       // Add a short fragment that is as compressible as specified
       // by FLAGS_compression_ratio.
-      utils::CompressibleString(&rnd, 0.5, 100, &piece);
+      utils::CompressibleString(&rnd, compress_ratio, 100, &piece);
       data_.append(piece);
     }
     pos_ = 0;
