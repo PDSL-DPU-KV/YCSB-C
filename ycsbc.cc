@@ -11,7 +11,9 @@
 
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
+#include <functional>
 #include <future>
 #include <iostream>
 #include <string>
@@ -20,10 +22,14 @@
 #include "client.h"
 #include "core_workload.h"
 #include "db_factory.h"
+#include "rocksdb/options.h"
 #include "rocksdb/perf_level.h"
 #include "rocksdb/perf_context.h"
 #include "timer.h"
 #include "utils.h"
+
+#include "rocksdb/utilities/my_statistics/global_statistics.h"
+#include "rocksdb/utilities/my_statistics/my_log.h"
 
 using namespace std;
 
@@ -40,10 +46,12 @@ string ParseCommandLine(int argc, const char *argv[], utils::Properties &props);
 void Init(utils::Properties &props);
 void PrintInfo(utils::Properties &props);
 
-int DelegateClient(ycsbc::DB *db, ycsbc::CoreWorkload *wl, const int num_ops,
+int DelegateClient(std::vector<ycsbc::DB *> *multi_dbs, ycsbc::CoreWorkload *wl, const int num_ops,
                    bool is_loading, int perf_level) {
-  db->Init();
-  ycsbc::Client client(*db, *wl);
+  for (int i = 0; i < multi_dbs->size(); i++) {
+    (*multi_dbs)[i]->Init();
+  }
+  ycsbc::Client client(*multi_dbs, *wl);
   int oks = 0;
   int next_report_ = 0;
 
@@ -77,9 +85,11 @@ int DelegateClient(ycsbc::DB *db, ycsbc::CoreWorkload *wl, const int num_ops,
   }
 
   if (perf_level > rocksdb::PerfLevel::kDisable) {
-    fprintf(stderr, "perf context: %s\n", rocksdb::get_perf_context()->ToString().c_str());
+    printf("perf context: %s\n", rocksdb::get_perf_context()->ToString().c_str());
   }
-  db->Close();
+  for (int i = 0; i < multi_dbs->size(); i++) {
+    (*multi_dbs)[i]->Close();
+  }
   return oks;
 }
 
@@ -88,10 +98,14 @@ int main(const int argc, const char *argv[]) {
   Init(props);
   string file_name = ParseCommandLine(argc, argv, props);
 
-  ycsbc::DB *db = ycsbc::DBFactory::CreateDB(props);
-  if (!db) {
-    cout << "Unknown database name " << props["dbname"] << endl;
-    exit(0);
+  const int num_multi_db = stoi(props["num_multi_db"]);
+  std::vector<ycsbc::DB *> multi_dbs_(num_multi_db);
+  for (int i = 0; i < num_multi_db; i++) { 
+    multi_dbs_[i] = ycsbc::DBFactory::CreateDB(props, i);
+    if (!multi_dbs_[i]) {
+      cout << "Unknown database name " << props["dbname"] << endl;
+      exit(0);
+    }
   }
 
   PrintInfo(props);
@@ -129,7 +143,7 @@ int main(const int argc, const char *argv[]) {
     uint64_t load_start = get_now_micros();
     total_ops = stoi(props[ycsbc::CoreWorkload::RECORD_COUNT_PROPERTY]);
     for (int i = 0; i < num_threads; ++i) {
-      actual_ops.emplace_back(async(launch::async, DelegateClient, db, &wl,
+      actual_ops.emplace_back(async(launch::async, DelegateClient, &multi_dbs_, &wl,
                                     total_ops / num_threads, true, perf_level));
     }
     assert((int)actual_ops.size() == num_threads);
@@ -153,7 +167,7 @@ int main(const int argc, const char *argv[]) {
     total_ops = stoi(props[ycsbc::CoreWorkload::OPERATION_COUNT_PROPERTY]);
     uint64_t run_start = get_now_micros();
     for (int i = 0; i < num_threads; ++i) {
-      actual_ops.emplace_back(async(launch::async, DelegateClient, db, &wl,
+      actual_ops.emplace_back(async(launch::async, DelegateClient, &multi_dbs_, &wl,
                                     total_ops / num_threads, false, perf_level));
     }
     assert((int)actual_ops.size() == num_threads);
@@ -236,22 +250,30 @@ int main(const int argc, const char *argv[]) {
   }
   if (print_stats) {
     printf("-------------- db statistics --------------\n");
-    db->PrintStats();
+    for (int i = 0; i < multi_dbs_.size(); i++) {
+      printf("-------------- db %d --------------\n", i);
+      multi_dbs_[i]->PrintStats();
+    }
     printf("-------------------------------------------\n");
   }
   if (wait_for_balance) {
-    uint64_t sleep_time = 0;
-    while (!db->HaveBalancedDistribution()) {
-      sleep(10);
-      sleep_time += 10;
-    }
-    printf("Wait balance:%lu s\n", sleep_time);
+    for (int i = 0; i < multi_dbs_.size(); i++) {
+      uint64_t sleep_time = 0;
+      while (!multi_dbs_[i]->HaveBalancedDistribution()) {
+        sleep(10);
+        sleep_time += 10;
+      }
+      printf("db: %d, Wait balance:%lu s\n", i, sleep_time);
 
-    printf("-------------- db statistics --------------\n");
-    db->PrintStats();
-    printf("-------------------------------------------\n");
+      printf("-------------- db statistics --------------\n");
+      multi_dbs_[i]->PrintStats();
+      printf("-------------------------------------------\n");
+    }
   }
-  delete db;
+  
+  for (int i = 0; i < num_multi_db; i++) {
+    delete multi_dbs_[i];
+  }
   return 0;
 }
 
@@ -348,6 +370,14 @@ string ParseCommandLine(int argc, const char *argv[],
       }
       props.SetProperty("dbwaitforbalance", argv[argindex]);
       argindex++;
+    } else if (strcmp(argv[argindex], "-num_multi_db") == 0) {
+      argindex++;
+      if (argindex >= argc) {
+        UsageMessage(argv[0]);
+        exit(0);
+      }
+      props.SetProperty("num_multi_db", argv[argindex]);
+      argindex++;
     } else {
       cout << "Unknown option '" << argv[argindex] << "'" << endl;
       exit(0);
@@ -390,6 +420,7 @@ void Init(utils::Properties &props) {
   props.SetProperty("dbstatistics", "false");
   props.SetProperty("perflevel", "3");
   props.SetProperty("dbwaitforbalance", "false");
+  props.SetProperty("num_multi_db", "1");
 }
 
 void PrintInfo(utils::Properties &props) {

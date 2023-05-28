@@ -6,7 +6,8 @@
 #include "rocksdb.h"
 
 #include "coding.h"
-#include "rocksdb/compression_type.h"
+#include "rocksdb/cache.h"
+#include "rocksdb/options.h"
 #include "rocksdb/statistics.h"
 
 using namespace std;
@@ -14,7 +15,7 @@ using namespace rapidjson;
 
 namespace ycsbc {
 RocksDB::RocksDB(const char *dbfilename, utils::Properties &props)
-    : noResult(0), dbstats_(nullptr), write_op_(nullptr) {
+    : noResult(0), dbstats_(nullptr), write_op_(nullptr), read_op_(nullptr) {
   // 1. Open and read from json config file
   std::string config_file_path =
       props.GetProperty("dboptions", "../config/rocksdb.json");
@@ -30,6 +31,7 @@ RocksDB::RocksDB(const char *dbfilename, utils::Properties &props)
   assert(doc.IsObject());
   // 3. Set Options
   write_op_ = new rocksdb::WriteOptions();
+  read_op_ = new rocksdb::ReadOptions();
   rocksdb::Options options;
   options.create_if_missing = true;
   SetOptions(&options, props, doc);
@@ -111,21 +113,7 @@ void RocksDB::SetOptions(rocksdb::Options *options, utils::Properties &props,
   options->disable_auto_compactions =
       iter != doc.MemberEnd() ? iter->value.GetBool() : false;
 
-  // 2. Set rocksdb block based table options
-  iter = doc.FindMember("TableOptions");
-  if (iter != doc.MemberEnd()) {
-    rocksdb::BlockBasedTableOptions block_based_options;
-
-    auto table_options = iter->value.GetObject();
-    auto op_iter = table_options.FindMember("bloom_bits");
-    block_based_options.filter_policy.reset(
-        rocksdb::NewBloomFilterPolicy(op_iter->value.GetDouble()));
-
-    options->table_factory.reset(
-        NewBlockBasedTableFactory(block_based_options));
-  }
-
-  // 3. Set rocksdb write options with config file
+  // 2. Set rocksdb write options with config file
   iter = doc.FindMember("WriteOptions");
   if (iter != doc.MemberEnd()) {
     auto write_options = iter->value.GetObject();
@@ -141,7 +129,45 @@ void RocksDB::SetOptions(rocksdb::Options *options, utils::Properties &props,
                           : false;
   }
 
-  // 4. Set rocksdb statistics
+  // 3. Set cache options with config file
+  iter = doc.FindMember("CacheOptions");
+  if (iter != doc.MemberEnd()) {
+    auto cache_options = iter->value.GetObject();
+    auto iter_cache_op = cache_options.FindMember("cache_size");
+    auto cache_size = iter_cache_op != cache_options.MemberEnd()
+                          ? iter_cache_op->value.GetInt()
+                          : 8 << 20;
+    iter_cache_op = cache_options.FindMember("cache_numshardbits");
+    auto cache_numshardbits = iter_cache_op != cache_options.MemberEnd()
+                                  ? iter_cache_op->value.GetInt()
+                                  : -1;
+    iter_cache_op = cache_options.FindMember("cache_high_pri_pool_ratio");
+    auto cache_high_pri_pool_ratio = iter_cache_op != cache_options.MemberEnd()
+                                  ? iter_cache_op->value.GetDouble()
+                                  : 0.0; 
+    std::shared_ptr<rocksdb::MemoryAllocator> allocator;
+    rocksdb::LRUCacheOptions opts(static_cast<size_t>(cache_size), cache_numshardbits,
+          false /*strict_capacity_limit*/, cache_high_pri_pool_ratio,
+          allocator, rocksdb::kDefaultToAdaptiveMutex);
+    cache_ = rocksdb::NewLRUCache(opts);
+  }
+
+  // 4. Set rocksdb block based table options
+  iter = doc.FindMember("TableOptions");
+  if (iter != doc.MemberEnd()) {
+    rocksdb::BlockBasedTableOptions block_based_options;
+
+    auto table_options = iter->value.GetObject();
+    auto op_iter = table_options.FindMember("bloom_bits");
+    block_based_options.filter_policy.reset(
+        rocksdb::NewBloomFilterPolicy(op_iter->value.GetDouble()));
+
+    block_based_options.block_cache = cache_;
+    options->table_factory.reset(
+        NewBlockBasedTableFactory(block_based_options));
+  }
+
+  // . Set rocksdb statistics
   iter = doc.FindMember("statistics");
   if (iter != doc.MemberEnd() && iter->value.GetBool()) {
     dbstats_ = rocksdb::CreateDBStatistics();
@@ -158,7 +184,7 @@ int RocksDB::Read(const std::string &table, const std::string &key,
                   const std::vector<std::string> *fields,
                   std::vector<KVPair> &result) {
   string value;
-  rocksdb::Status s = db_->Get(rocksdb::ReadOptions(), key, &value);
+  rocksdb::Status s = db_->Get(*read_op_, key, &value);
   if (s.ok()) {
     // printf("value:%lu\n",value.size());
     DeSerializeValues(value, result);
@@ -182,7 +208,7 @@ int RocksDB::Read(const std::string &table, const std::string &key,
 int RocksDB::Scan(const std::string &table, const std::string &key, int len,
                   const std::vector<std::string> *fields,
                   std::vector<std::vector<KVPair>> &result) {
-  auto it = db_->NewIterator(rocksdb::ReadOptions());
+  auto it = db_->NewIterator(*read_op_);
   it->Seek(key);
   std::string val;
   std::string k;

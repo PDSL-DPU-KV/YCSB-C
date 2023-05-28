@@ -1,12 +1,15 @@
 ## workload parameters
 workload="drop"
-workload_array=("drop" "load" "workloadc")
+workload_array=("drop" "load" "workloada")
 threads=1
 
 ## db parameters
 db=rocksdb
+db_array=("rocksdb" "wiredtiger")
+num_multi_db=1
+#dbpath="/mnt/pmem0/test"
 dbpath="/mnt/ssd/test"
-dboptions="./config/template-rocksdb.json"
+dboptions="./config/rocksdb.json"
 dbstatistics=1
 dbwaitforbalance=1
 perflevel=3
@@ -21,6 +24,10 @@ const_params=""
 function fill_params() {
     if [ -n "$db" ];then
         const_params=$const_params"-db $db "
+    fi
+
+    if [ -n "$num_multi_db" ];then
+        const_params=$const_params"-num_multi_db $num_multi_db "
     fi
 
     if [ -n "$dbpath" ];then
@@ -54,7 +61,7 @@ function fill_params() {
 
 function clean_db() {
     if [ -n "$dbpath" ];then
-        sudo rm -f $dbpath/*
+        sudo rm -rf $dbpath/*
     fi
     sleep 2
 }
@@ -71,9 +78,10 @@ function copy_out_file() {
     mkdir $bench_dir/result_$tdate > /dev/null 2>&1
     res_dir=$bench_dir/result_$tdate/$1\_$2
     mkdir $res_dir > /dev/null 2>&1
-    \cp -f $bench_dir/out.out $res_dir/
-    \cp -f $bench_dir/compaction.csv $res_dir/
-    \cp -f $bench_dir/flush.csv $res_dir/
+    \mv -f $bench_dir/out.out $res_dir/
+    \mv -f $bench_dir/compaction.csv $res_dir/
+    \mv -f $bench_dir/flush.csv $res_dir/
+    \mv -f $bench_dir/file_access.csv $res_dir/
 }
 
 # $1: load/run
@@ -108,6 +116,7 @@ function run_all_test() {
             workload=$1/$wl.spec
             dboptions=$2
             if [ $wl == "load" ]; then
+                workload=$1/workloada.spec
                 run_one_test load numa
             else
                 run_one_test run numa

@@ -3,8 +3,8 @@
     "max_write_buffer_number": 2,
     "max_background_flushes": 1,
     "max_background_compactions": 16,
-    "subcompactions": 4,
-    "compression_type": "zstd",
+    "subcompactions": 1,
+    "compression_type": "none",
     "num_levels": 7,
     "min_level_to_compress": 3,
     "use_direct_reads": true,
@@ -19,5 +19,10 @@
     "WriteOptions": {
         "disableWAL": true,
         "sync": false
+    },
+    "CacheOptions": {
+        "cache_size": 1073741824,
+        "cache_numshardbits": -1,
+        "cache_high_pri_pool_ratio": 0.0
     }
 }

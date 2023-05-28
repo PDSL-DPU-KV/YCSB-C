@@ -10,7 +10,9 @@
 #define YCSB_C_CLIENT_H_
 
 #include <hdr/hdr_histogram.h>
+#include <cstdint>
 #include <string>
+#include <vector>
 
 #include "core_workload.h"
 #include "db.h"
@@ -26,7 +28,7 @@ namespace ycsbc {
 
 class Client {
  public:
-  Client(DB &db, CoreWorkload &wl) : db_(db), workload_(wl) {}
+  Client(std::vector<DB *> &dbs, CoreWorkload &wl) : dbs_(dbs), workload_(wl) {}
 
   virtual bool DoInsert();
   virtual bool DoTransaction();
@@ -40,15 +42,16 @@ class Client {
   virtual int TransactionUpdate();
   virtual int TransactionInsert();
 
-  DB &db_;
+  std::vector<DB *> &dbs_;
   CoreWorkload &workload_;
 };
 
 inline bool Client::DoInsert() {
-  std::string key = workload_.NextSequenceKey();
+  Key key = workload_.NextSequenceKey();
   std::vector<DB::KVPair> pairs;
   workload_.BuildValues(pairs);
-  return (db_.Insert(workload_.NextTable(), key, pairs) == DB::kOK);
+  size_t id = key.key_num_ % dbs_.size();
+  return (dbs_[id]->Insert(workload_.NextTable(), key.key_name_, pairs) == DB::kOK);
 }
 
 inline bool Client::DoTransaction() {
@@ -126,28 +129,30 @@ inline bool Client::DoTransaction() {
 
 inline int Client::TransactionRead() {
   const std::string &table = workload_.NextTable();
-  const std::string &key = workload_.NextTransactionKey();
+  const Key &key = workload_.NextTransactionKey();
+  uint64_t id = key.key_num_ % dbs_.size();
   std::vector<DB::KVPair> result;
   if (!workload_.read_all_fields()) {
     std::vector<std::string> fields;
     fields.push_back("field" + workload_.NextFieldName());
-    return db_.Read(table, key, &fields, result);
+    return dbs_[id]->Read(table, key.key_name_, &fields, result);
   } else {
-    return db_.Read(table, key, NULL, result);
+    return dbs_[id]->Read(table, key.key_name_, NULL, result);
   }
 }
 
 inline int Client::TransactionReadModifyWrite() {
   const std::string &table = workload_.NextTable();
-  const std::string &key = workload_.NextTransactionKey();
+  const Key &key = workload_.NextTransactionKey();
+  uint64_t id = key.key_num_ % dbs_.size();
   std::vector<DB::KVPair> result;
 
   if (!workload_.read_all_fields()) {
     std::vector<std::string> fields;
     fields.push_back("field" + workload_.NextFieldName());
-    db_.Read(table, key, &fields, result);
+    dbs_[id]->Read(table, key.key_name_, &fields, result);
   } else {
-    db_.Read(table, key, NULL, result);
+    dbs_[id]->Read(table, key.key_name_, NULL, result);
   }
 
   std::vector<DB::KVPair> values;
@@ -156,41 +161,44 @@ inline int Client::TransactionReadModifyWrite() {
   } else {
     workload_.BuildUpdate(values);
   }
-  return db_.Update(table, key, values);
+  return dbs_[id]->Update(table, key.key_name_, values);
 }
 
 inline int Client::TransactionScan() {
   const std::string &table = workload_.NextTable();
-  const std::string &key = workload_.NextTransactionKey();
+  const Key &key = workload_.NextTransactionKey();
+  uint64_t id = key.key_num_ % dbs_.size();
   int len = workload_.NextScanLength();
   std::vector<std::vector<DB::KVPair>> result;
   if (!workload_.read_all_fields()) {
     std::vector<std::string> fields;
     fields.push_back("field" + workload_.NextFieldName());
-    return db_.Scan(table, key, len, &fields, result);
+    return dbs_[id]->Scan(table, key.key_name_, len, &fields, result);
   } else {
-    return db_.Scan(table, key, len, NULL, result);
+    return dbs_[id]->Scan(table, key.key_name_, len, NULL, result);
   }
 }
 
 inline int Client::TransactionUpdate() {
   const std::string &table = workload_.NextTable();
-  const std::string &key = workload_.NextTransactionKey();
+  const Key &key = workload_.NextTransactionKey();
+  uint64_t id = key.key_num_ % dbs_.size();  
   std::vector<DB::KVPair> values;
   if (workload_.write_all_fields()) {
     workload_.BuildValues(values);
   } else {
     workload_.BuildUpdate(values);
   }
-  return db_.Update(table, key, values);
+  return dbs_[id]->Update(table, key.key_name_, values);
 }
 
 inline int Client::TransactionInsert() {
   const std::string &table = workload_.NextTable();
-  const std::string &key = workload_.NextSequenceKey();
+  const Key &key = workload_.NextSequenceKey();
+  uint64_t id = key.key_num_ % dbs_.size();    
   std::vector<DB::KVPair> values;
   workload_.BuildValues(values);
-  return db_.Insert(table, key, values);
+  return dbs_[id]->Insert(table, key.key_name_, values);
 }
 
 }  // namespace ycsbc

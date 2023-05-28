@@ -23,6 +23,14 @@ namespace ycsbc {
 
 enum Operation { INSERT, READ, UPDATE, SCAN, READMODIFYWRITE };
 
+struct Key {
+  Key(uint64_t key_num, std::string key_name) : key_num_(key_num), key_name_(key_name) {}
+  ~Key() {}
+
+  uint64_t key_num_;
+  std::string key_name_;
+};
+
 class CoreWorkload {
  public:
   ///
@@ -144,8 +152,8 @@ class CoreWorkload {
   virtual void BuildUpdate(std::vector<ycsbc::DB::KVPair> &update);
 
   virtual std::string NextTable() { return table_name_; }
-  virtual std::string NextSequenceKey();     /// Used for loading data
-  virtual std::string NextTransactionKey();  /// Used for transactions
+  virtual Key NextSequenceKey();     /// Used for loading data
+  virtual Key NextTransactionKey();  /// Used for transactions
   virtual Operation NextOperation() { return op_chooser_.Next(); }
   virtual std::string NextFieldName();
   virtual size_t NextScanLength() { return scan_len_chooser_->Next(); }
@@ -195,17 +203,19 @@ class CoreWorkload {
   double field_compression_ratio_;
 };
 
-inline std::string CoreWorkload::NextSequenceKey() {
+inline Key CoreWorkload::NextSequenceKey() {
   uint64_t key_num = key_generator_->Next();
-  return BuildKeyName(key_num);
+  Key key(key_num, BuildKeyName(key_num));
+  return key;
 }
 
-inline std::string CoreWorkload::NextTransactionKey() {
+inline Key CoreWorkload::NextTransactionKey() {
   uint64_t key_num;
   do {
     key_num = key_chooser_->Next();
   } while (key_num > insert_key_sequence_.Last());
-  return BuildKeyName(key_num);
+  Key key(key_num, BuildKeyName(key_num));
+  return key;
 }
 
 inline std::string CoreWorkload::BuildKeyName(uint64_t key_num) {

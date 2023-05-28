@@ -49,9 +49,10 @@ class RocksDB : public DB {
  private:
   rocksdb::DB *db_;
   unsigned noResult;
-  // std::shared_ptr<rocksdb::Cache> cache_;
+  std::shared_ptr<rocksdb::Cache> cache_;
   std::shared_ptr<rocksdb::Statistics> dbstats_;
   rocksdb::WriteOptions *write_op_;
+  rocksdb::ReadOptions *read_op_;
 
   void SetOptions(rocksdb::Options *options, utils::Properties &props,
                   rapidjson::Document &doc);
